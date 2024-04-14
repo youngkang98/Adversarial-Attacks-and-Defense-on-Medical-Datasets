@@ -28,6 +28,8 @@ from utils.data import psnr
 from art.defences.trainer import AdversarialTrainer
 from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent
 from PreActBottleNeck import PreActResNet50
+import warnings
+warnings.filterwarnings("ignore")
 
 def plot_confusion_matrix(true_labels,pred_labels,name):
     # Compute the confusion matrix
@@ -217,6 +219,7 @@ test_transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 # test_transform = transforms.Compose([
@@ -237,12 +240,12 @@ test_transform = transforms.Compose([
 
 # Dataset for noise generation (including only the first image_count images)
 # noise_dataset = ISICDataset(datapath, adversarialFile, 'test_data', transform=test_transform)
-noise_dataset = ISICDataset(datapath, adversarialFile, 'test_data', transform=test_transform)
+train_dataset = ISICDataset(datapath, adversarialFile, 'test_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
 # noise_dataset.data = noise_dataset.data[:image_count]
 # noise_dataset.labels = noise_dataset.labels[:image_count]
-noise_loader = DataLoader(noise_dataset, batch_size=16, shuffle=True)
-noise_dataset_length = len(noise_dataset)
-print(f"Number of images in the noise dataset: {noise_dataset_length}")
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+train_dataset_length = len(train_dataset)
+print(f"Number of images in the noise dataset: {train_dataset_length}")
 
 # Dataset for evaluation (excluding the images used for noise generation)
 eval_dataset = ISICDataset(datapath, testfile, 'test_data', transform=test_transform)
@@ -261,6 +264,7 @@ model = resnet50()
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
 model.load_state_dict(checkpoint['netC'])
+model.train()
 # model.eval()
 
 # Define the loss function and the optimizer
@@ -297,12 +301,12 @@ mean_inf_train = 0.57  # Modify as needed
 
 
 # Evaluation without noise
-# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-# print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-# plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean")
-# save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
-# classificationReportFileName = 'classification_report_clean.txt'
-# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_before_advtrain")
+save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
+classificationReportFileName = 'classification_report_clean_before_advtrain.txt'
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
 
 # Defense Testing
@@ -324,21 +328,34 @@ attack_fgm = ProjectedGradientDescent(
     eps=8.0/255.0
     )
 
+pgd = ProjectedGradientDescent(clean_classifier, eps=8 / 255, eps_step=2 / 255, max_iter=100, num_random_init=1)
+# 
+# trainer = AdversarialTrainer(
+#     classifier=classifier, 
+#     attacks=attack_fgm, 
+#     ratio=1
+#     )
+
 trainer = AdversarialTrainer(
     classifier=classifier, 
-    attacks=attack_fgm, 
+    # attacks=attack_fgm, 
+    attacks=pgd, 
     ratio=1
     )
 
 adversarial_x, adversarial_y = adv_training_dataset[0:]
-if remap:
-    adversarial_y = remap_labels(adversarial_y)
+train_x, train_y = train_dataset[0:]
+# adversarial_x = np.append(adversarial_x,train_x,axis=0)
+# adversarial_y = np.append(adversarial_y,train_y,axis=0)
 
-trainer.fit_generator
+# if remap:
+#     adversarial_y = remap_labels(adversarial_y)
+
+# # trainer.fit_generator(art_datagen,nb_epochs = 30)
 trainer.fit(
     x=adversarial_x, 
     y=adversarial_y,
-    nb_epochs=30,
+    nb_epochs=10,
     batch_size=16
     )
 
@@ -351,9 +368,18 @@ success_rate = 0
 # Evaluation without noise
 val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
 print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean")
+plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain")
 save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
-classificationReportFileName = 'classification_report_clean.txt'
+classificationReportFileName = 'classification_report_clean_after_advtrain.txt'
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+
+classifier.fit(train_x, train_y, batch_size= 16, nb_epochs= 10)
+
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain")
+save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+classificationReportFileName = 'classification_report_clean_after_advtrain.txt'
 generate_classification_report(true_labels,pred_labels,classificationReportFileName)
    
 # Loop through the different numbers of images
