@@ -44,8 +44,8 @@ def organize_images_by_label(csv_path, image_directory, output_directory):
             print(f"Warning: {src_path} does not exist.")
 
 if __name__ == "__main__":
-    csv_path = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'  # Path to the CSV file
+    csv_path = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_test.csv'  # Path to the CSV file
     image_directory = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'  # Directory containing the images
-    output_directory = 'C:/Users/lkang/Documents/ISIC_2019/'  # Directory where folders will be created
+    output_directory = 'C:/Users/lkang/Documents/ISIC_2019_test/'  # Directory where folders will be created
 
     organize_images_by_label(csv_path, image_directory, output_directory)
