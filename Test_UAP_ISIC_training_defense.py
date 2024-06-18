@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from dataloader import ISICDataset, get_transform
 from art.estimators.classification import PyTorchClassifier
 from art.attacks.evasion import UniversalPerturbation,TargetedUniversalPerturbation
-from art.defences.trainer import AdversarialTrainerFBFPyTorch
+from art.defences.trainer import AdversarialTrainerFBFPyTorch,AdversarialTrainerMadryPGD
 from art.data_generators import PyTorchDataGenerator
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
@@ -25,12 +25,11 @@ from collections import defaultdict
 from math import floor
 from utils.plot import make_adv_img
 from utils.data import psnr
-from utils.test import test
+# from utils.test import test
 
 from art.defences.trainer import AdversarialTrainer
 from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent
 from PreActBottleNeck import PreActResNet50
-from cbam.imagenet import create_resnet
 
 import torchvision.datasets as datasets
 
@@ -183,24 +182,29 @@ def generate_classification_report(true_labels, pred_labels,fileName):
 # Parameters need to change
 
 datapath = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
-testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
+# testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
+trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train_012.csv'
+testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test_012.csv'
 train_data_path = 'C:/Users/lkang/Documents/ISIC_2019_train/'
 test_data_path = 'C:/Users/lkang/Documents/ISIC_2019_test/'
 # testfile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_test_02.csv'
 # testfile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_test_old.csv'
 # adversarialFile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_train_02.csv'
 # adversarialFile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_adversarial.csv'
-adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
+# adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
+adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_Adversarial_012.csv'
 # adversarialFile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_Adversarial_02.csv'
 
 # Load the previously trained model
 # num_classes = 2
 # num_classes = 4
-num_classes = 8
-# checkpoint = torch.load('C:/Users/lkang/Documents/Acc75_Epoch50_BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
+num_classes = 3
+# checkpoint = torch.load('C:/Users/lkang/Documents/Acc75_Epoch50_ BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Acc73_Epoch100_BS16_4class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Cifar10_Acc76_BS16/cifar10_morph.pth.tar',map_location ='cpu')
-checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc75_Epoch60_BS32_Clean/ISIC2019_morph.pth.tar',map_location ='cpu')
+# checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc75_Epoch60_BS32_Clean/ISIC2019_morph.pth.tar',map_location ='cpu')
+
+checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc81_Epoch100_BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/04-16_skinV2_Resnet18_250_128_0.01/checkpoint.pth.tar',map_location ='cpu')
 # Number of images to use for noise generation
 image_count = 1773
@@ -247,17 +251,15 @@ test_transform = transforms.Compose([
 # eval_dataset_length = len(test_dataset)
 # print(f"Number of images in the evaluation datasetS: {eval_dataset_length}")
 
-
-
 # train_dataset =  datasets.ImageFolder(train_data_path,test_transform)
 # train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 # train_dataset_length = int(len(train_dataset))
 # print(f"Number of images in the train dataset: {train_dataset_length}")
 
-eval_dataset = datasets.ImageFolder(test_data_path,test_transform)
-eval_dataset_length = len(eval_dataset)
-eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
-print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
+# eval_dataset = datasets.ImageFolder(test_data_path,test_transform)
+# eval_dataset_length = len(eval_dataset)
+# eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
+# print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
 # adv_training_dataset = datasets.ImageFolder(train_data_path,test_transform)
 # adv_training_loader = DataLoader(adv_training_dataset, batch_size=16, shuffle=True)
@@ -273,16 +275,21 @@ print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 # train_dataset_length = len(train_dataset)
 # print(f"Number of images in the noise dataset: {train_dataset_length}")
 
-# # Dataset for evaluation (excluding the images used for noise generation)
-# eval_dataset = ISICDataset(datapath, testfile, 'test_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
-# eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
-# eval_dataset_length = len(eval_dataset)
-# print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
+# Dataset for evaluation (excluding the images used for noise generation)
+eval_dataset = ISICDataset(datapath, testfile, 'test_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
+eval_dataset_length = len(eval_dataset)
+print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
-adv_training_dataset = ISICDataset(datapath, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
+adv_training_dataset = ISICDataset(datapath, trainfile, 'train_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
 adv_training_loader = DataLoader(adv_training_dataset, batch_size=16, shuffle=True)
 adv_training_length = len(adv_training_dataset)
 print(f"Number of images in the adv training dataset: {adv_training_length}")
+
+noise_dataset = ISICDataset(datapath, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+noise_loader = DataLoader(noise_dataset, batch_size=16, shuffle=True)
+noise_length = len(noise_dataset)
+print(f"Number of images in the adv training dataset: {noise_length}")
 
 device = 'cuda'
 model = resnet50()
@@ -298,7 +305,7 @@ model.train()
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=0.9, weight_decay=5e-4)
-# optimizer.load_state_dict(checkpoint['optimizerC'])
+optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
 classifier = PyTorchClassifier(
@@ -327,14 +334,14 @@ mean_inf_train = 0.57  # Modify as needed
 # file_path = 'Noise/Noise_100.npy'
 # noise = np.load(file_path)
 
-test(model,eval_loader,"clean")
+# test(model,eval_loader,"clean")
 
 # Evaluation without noise
 val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
 print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_before_advtrain")
-save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
-classificationReportFileName = 'classification_report_clean_before_advtrain.txt'
+plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean")
+save_results_to_file("clean_result.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
+classificationReportFileName = 'classification_report_clean.txt'
 generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
 
@@ -357,7 +364,9 @@ attack_fgm = ProjectedGradientDescent(
     eps=8.0/255.0
     )
 
-pgd = ProjectedGradientDescent(classifier, eps=8 / 255, eps_step=2 / 255, max_iter=100, num_random_init=1)
+# pgd = ProjectedGradientDescent(classifier, eps=8 / 255, eps_step=2 / 255, max_iter=100, num_random_init=1)
+# pgd = ProjectedGradientDescent(classifier, eps=0.04, eps_step=0.024, max_iter=100, num_random_init=1)
+# pgd = ProjectedGradientDescent(estimator=clean_classifier, eps=8.0/255.0,batch_size=32)
 # 
 # trainer = AdversarialTrainer(
 #     classifier=classifier, 
@@ -374,8 +383,11 @@ pgd = ProjectedGradientDescent(classifier, eps=8 / 255, eps_step=2 / 255, max_it
 
 adversarial_x, adversarial_y = adv_training_dataset[0:]
 # train_x, train_y = train_dataset[0:]
-adversarial_x_adv = pgd.generate(adversarial_x)
+# adversarial_x_adv = pgd.generate(adversarial_x)
 
+adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.0004,eps_step=2 / 255,classifier = clean_classifier,batch_size=16)
+adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=50)
+# 
 # adversarial_x_comb  = np.append(adversarial_x_adv,train_x,axis=0)
 # adversarial_y       = np.append(adversarial_y,train_y,axis=0)
 
@@ -396,17 +408,19 @@ image_list = []
 
 success_rate = 0
 
-classifier.fit(adversarial_x, adversarial_y, batch_size= 16, nb_epochs= 50, verbose=True)
+# classifier.fit(adversarial_x_adv, adversarial_y, batch_size= 16, nb_epochs= 50, verbose=True)
 
-# Evaluation without noise
-val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+model.eval()
+
+# Evaluation madry_pgd
+madry_classifier = adv_trainer.get_classifier()
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(madry_classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
 plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain")
-save_results_to_file("clean_reuslt.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+save_results_to_file("evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
 classificationReportFileName = 'classification_report_clean_after_advtrain.txt'
 generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
-# classifier.fit(train_x, train_y, batch_size= 16, nb_epochs= 10)
 
 # val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
 # print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
@@ -416,134 +430,134 @@ generate_classification_report(true_labels,pred_labels,classificationReportFileN
 # generate_classification_report(true_labels,pred_labels,classificationReportFileName)
    
 # Loop through the different numbers of images
-# for current_attack_eps in attack_eps:
-#     for current_eps in eps:
-#         for image_count in image_counts:
-#             # Calculate base count per class for current target
-#             base_count = floor(image_count / num_classes)
-#             # Calculate how many classes need an extra image to reach the target
-#             extra_images = image_count % num_classes
+for current_attack_eps in attack_eps:
+    for current_eps in eps:
+        for image_count in image_counts:
+            # Calculate base count per class for current target
+            base_count = floor(image_count / num_classes)
+            # Calculate how many classes need an extra image to reach the target
+            extra_images = image_count % num_classes
     
-#             # Initialize counts and image list for the current subset
-#             class_image_count = defaultdict(int)
-#             image_list.clear()
+            # Initialize counts and image list for the current subset
+            class_image_count = defaultdict(int)
+            image_list.clear()
             
-#             for images, labels in noise_loader:
-#                 for img, label in zip(images, labels):
-#                     label_index = label.item()
-#                     # Calculate the allowed count for the current class
-#                     allowed_count = base_count + (1 if label_index < extra_images else 0)
+            for images, labels in noise_loader:
+                for img, label in zip(images, labels):
+                    label_index = label.item()
+                    # Calculate the allowed count for the current class
+                    allowed_count = base_count + (1 if label_index < extra_images else 0)
         
-#                     # Only add the image if the class count hasn't reached the limit
-#                     if class_image_count[label_index] < allowed_count:
-#                         image_list.append(img)
-#                         class_image_count[label_index] += 1
+                    # Only add the image if the class count hasn't reached the limit
+                    if class_image_count[label_index] < allowed_count:
+                        image_list.append(img)
+                        class_image_count[label_index] += 1
         
-#                     # Check if we have reached the target count
-#                     if sum(class_image_count.values()) >= image_count:
-#                         break
-#                 if sum(class_image_count.values()) >= image_count:
-#                     break
+                    # Check if we have reached the target count
+                    if sum(class_image_count.values()) >= image_count:
+                        break
+                if sum(class_image_count.values()) >= image_count:
+                    break
             
-#             # # # Loop through the DataLoader and collect individual images
-#             # for images, labels in noise_loader:
-#             #     for img in images:
-#             #         image_list.append(img)
-#             #         if len(image_list) >= image_count:
-#             #             break
-#             #     if len(image_list) >= image_count:
-#             #         break
+            # # # Loop through the DataLoader and collect individual images
+            # for images, labels in noise_loader:
+            #     for img in images:
+            #         image_list.append(img)
+            #         if len(image_list) >= image_count:
+            #             break
+            #     if len(image_list) >= image_count:
+            #         break
                 
-#             # for images, labels in noise_loader:
-#             #     for img, label in zip(images, labels):
-#             #         class_image_count[label.item()] += 1  # Increment the count for the current label
-#             #         image_list.append(img)
+            # for images, labels in noise_loader:
+            #     for img, label in zip(images, labels):
+            #         class_image_count[label.item()] += 1  # Increment the count for the current label
+            #         image_list.append(img)
             
-#             #         # Check if the image_count is reached for any class
-#             #         if any(count >= image_count for count in class_image_count.values()):
-#             #             break
+            #         # Check if the image_count is reached for any class
+            #         if any(count >= image_count for count in class_image_count.values()):
+            #             break
             
-#             #     # Break the outer loop if the image_count is reached for any class
-#             #     if any(count >= image_count for count in class_image_count.values()):
-#             #         break
+            #     # Break the outer loop if the image_count is reached for any class
+            #     if any(count >= image_count for count in class_image_count.values()):
+            #         break
             
-#             print(class_image_count)
+            print(class_image_count)
             
-#             random.shuffle(image_list)
-#             # Concatenate exactly 'image_count' number of images
-#             x_subset = torch.stack(image_list[:image_count]).cpu().numpy()
+            random.shuffle(image_list)
+            # Concatenate exactly 'image_count' number of images
+            x_subset = torch.stack(image_list[:image_count]).cpu().numpy()
             
-#             print(f"number of subset: {len(x_subset)}")
-#             if targeted_attack :
-#                 #------------------------------------
-#                 # Generate targeted attack
-#                 adv_crafter = TargetedUniversalPerturbation(
-#                     clean_classifier,
-#                     attacker='fgsm',
-#                     delta=0.000001,
-#                     attacker_params={'targeted': True, 'eps': current_attack_eps},
-#                     max_iter=15,
-#                     eps=current_eps,#mean_inf_train*0.02
-#                     norm=np.inf
-#                 )
-#                 # Specify the target class as an integer (e.g., 2 for "Basal cell carcinoma")
-#                 target_class = 3
+            print(f"number of subset: {len(x_subset)}")
+            if targeted_attack :
+                #------------------------------------
+                # Generate targeted attack
+                adv_crafter = TargetedUniversalPerturbation(
+                    clean_classifier,
+                    attacker='fgsm',
+                    delta=0.000001,
+                    attacker_params={'targeted': True, 'eps': current_attack_eps},
+                    max_iter=15,
+                    eps=current_eps,#mean_inf_train*0.02
+                    norm=np.inf
+                )
+                # Specify the target class as an integer (e.g., 2 for "Basal cell carcinoma")
+                target_class = 3
                 
-#                 # Create a one-hot encoded array of target labels
-#                 target_labels = np.array([to_one_hot(target_class, num_classes) for _ in range(len(x_subset))])
+                # Create a one-hot encoded array of target labels
+                target_labels = np.array([to_one_hot(target_class, num_classes) for _ in range(len(x_subset))])
             
-#                 # Generate adversarial examples with the target class
-#                 x_test_adv = adv_crafter.generate(x=x_subset, y=target_labels)
-#                 #------------------------------
-#             else:
-#                 #Generate universal attack
-#                 adv_crafter = UniversalPerturbation(
-#                     clean_classifier,
-#                     attacker='fgsm',
-#                     delta=0.000001,#0.000001,
-#                     attacker_params={'targeted': False, 'eps': current_attack_eps}, #eps = 0.001,0.0024
-#                     max_iter=15,
-#                     eps= current_eps,#0.04
-#                     norm=np.inf
-#                 )
-#                 x_test_adv = adv_crafter.generate(x=x_subset)
+                # Generate adversarial examples with the target class
+                x_test_adv = adv_crafter.generate(x=x_subset, y=target_labels)
+                #------------------------------
+            else:
+                #Generate universal attack
+                adv_crafter = UniversalPerturbation(
+                    clean_classifier,
+                    attacker='fgsm',
+                    delta=0.000001,#0.000001,
+                    attacker_params={'targeted': False, 'eps': current_attack_eps}, #eps = 0.001,0.0024
+                    max_iter=15,
+                    eps= current_eps,#0.04
+                    norm=np.inf
+                )
+                x_test_adv = adv_crafter.generate(x=x_subset)
                 
-#                 # #-------------------------------------
+                # #-------------------------------------
             
-#             noise = adv_crafter.noise
-#             # noise = adv_crafter.noise[0, :]
-#             # noise = noise.astype(np.float32)
-#             noise_tensor = torch.tensor(noise, dtype=torch.float32, device=device)
+            noise = adv_crafter.noise
+            # noise = adv_crafter.noise[0, :]
+            # noise = noise.astype(np.float32)
+            noise_tensor = torch.tensor(noise, dtype=torch.float32, device=device)
         
-#             file_name = f'Noise/Noise_{len(x_subset)}.npy'
-#             np.save(file_name, noise)
+            file_name = f'Noise/Noise_{len(x_subset)}.npy'
+            np.save(file_name, noise)
             
-#             if targeted_attack :
-#                 # Evaluation with targeted noise
-#                 val_loss_with_noise, val_acc_with_noise, success_rate, true_labels, pred_labels = evaluate_targeted_attack(classifier, eval_loader, target_class, criterion, device, noise_tensor,
-#                                                                                                                             add_noise=True,
-#                                                                                                                             remap= remap,
-#                                                                                                                             eps_current=[current_attack_eps,current_eps],
-#                                                                                                                             image_count=image_count)
-#                 print(f"With Noise {image_count} - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}% - Succ Rate: {success_rate:.2f}%")
-#             else :
-#                 # # Evaluation with noise
-#                 val_loss_with_noise, val_acc_with_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device, noise_tensor, 
-#                                                                                               add_noise=True,
-#                                                                                               remap=remap,
-#                                                                                               eps_current=[current_attack_eps,current_eps],
-#                                                                                               image_count=image_count)
-#                 print(f"With Noise {image_count} - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}%")
+            if targeted_attack :
+                # Evaluation with targeted noise
+                val_loss_with_noise, val_acc_with_noise, success_rate, true_labels, pred_labels = evaluate_targeted_attack(classifier, eval_loader, target_class, criterion, device, noise_tensor,
+                                                                                                                            add_noise=True,
+                                                                                                                            remap= remap,
+                                                                                                                            eps_current=[current_attack_eps,current_eps],
+                                                                                                                            image_count=image_count)
+                print(f"With Noise {image_count} - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}% - Succ Rate: {success_rate:.2f}%")
+            else :
+                # # Evaluation with noise
+                val_loss_with_noise, val_acc_with_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device, noise_tensor, 
+                                                                                              add_noise=True,
+                                                                                              remap=remap,
+                                                                                              eps_current=[current_attack_eps,current_eps],
+                                                                                              image_count=image_count)
+                print(f"With Noise {image_count} - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}%")
 
             
-#             resultFolder = 'ISIC2019/'
-#             plot_confusion_matrix(true_labels, pred_labels, resultFolder+f'confusion_matrix_{image_count}_att{current_attack_eps}_eps{current_eps}')
+            resultFolder = 'ISIC2019/'
+            plot_confusion_matrix(true_labels, pred_labels, f'confusion_matrix_{image_count}_att{current_attack_eps}_eps{current_eps}')
             
             
-#             # results_filename = resultFolder+f'evaluation_results_{image_count}_{iteration}.txt'
-#             results_filename = resultFolder+f'evaluation_results_{image_count}_att{current_attack_eps}_eps{current_eps}.txt'
-#             save_results_to_file(results_filename, val_loss_no_noise, val_acc_no_noise, val_loss_with_noise, val_acc_with_noise,success_rate,True)
+            # results_filename = resultFolder+f'evaluation_results_{image_count}_{iteration}.txt'
+            results_filename =f'evaluation_results_{image_count}_att{current_attack_eps}_eps{current_eps}.txt'
+            save_results_to_file(results_filename, val_loss_no_noise, val_acc_no_noise, val_loss_with_noise, val_acc_with_noise,success_rate,True)
             
-#             classificationReportFileName = resultFolder+f'classification_report_{image_count}_att{current_attack_eps}_eps{current_eps}.txt'
-#             generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+            classificationReportFileName = f'classification_report_{image_count}_att{current_attack_eps}_eps{current_eps}.txt'
+            generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
