@@ -14,9 +14,9 @@ mapping = {'normal': 0, 'pneumonia': 1, 'COVID-19': 2}
 
 
 def load_data(datapath, trainfile, testfile):
-    if os.path.exists(datapath + '/x_train.npy'):
-        x_train = np.load(datapath + '/x_train.npy')
-        y_train = np.load(datapath + '/y_train.npy')
+    if os.path.exists(datapath + '/x_test.npy'):
+        # x_train = np.load(datapath + '/x_train.npy')
+        # y_train = np.load(datapath + '/y_train.npy')
         x_test = np.load(datapath + '/x_test.npy')
         y_test = np.load(datapath + '/y_test.npy')
     else:
@@ -42,7 +42,7 @@ def load_data(datapath, trainfile, testfile):
                     continue
                 h, w, c = x.shape
                 x = x[int(h / 6):, :]
-                x = cv2.resize(x, (480, 480))
+                x = cv2.resize(x, (256, 256))
                 x = x.astype('float32') / 255.0
                 x_list.append(x)
                 y_list.append(mapping[line[2]])
@@ -98,9 +98,9 @@ def set_up(args):
     # # Create the model
     sess, graph = create_model(args.weightspath, args.metaname, args.ckptname)
     # # Create the ART classifier
-    input_tensor = graph.get_tensor_by_name("input_2:0")
+    input_tensor = graph.get_tensor_by_name("input_1:0")
     # if input_tensor.shape.as_list()[1:3] != [224, 224]:
-    #        input_tensor = tf.placeholder(tf.float32, shape=[None, 224, 224, 3], name="input_2")
+    # input_tensor = tf.placeholder(tf.float32, shape=[None, 256, 256, 3], name="input_1")
     logit_tensor = graph.get_tensor_by_name("final_output/MatMul:0")
     output_tensor = graph.get_tensor_by_name("softmax/Softmax:0")
     label_tensor = graph.get_tensor_by_name("Placeholder:0")
@@ -118,8 +118,9 @@ def set_up(args):
         label_tensor = tf.placeholder(dtype=tf.float32, shape=[None, number_of_classes], name="Placeholder")
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
         logits=logit_tensor, labels=label_tensor))
-    classifier = TFClassifier(input_ph=input_tensor, output=output_tensor,
-                              labels_ph=label_tensor, loss=loss, sess=sess)
+    # classifier = TFClassifier(input_ph=input_tensor, output=output_tensor,
+    #                           labels_ph=label_tensor, loss=loss, sess=sess)
+    classifier = TFClassifier(input_ph=input_tensor, output=output_tensor, sess=sess)
     return (x_test, y_test), (mean_l2_train, mean_inf_train), norm, eps, classifier
 
 

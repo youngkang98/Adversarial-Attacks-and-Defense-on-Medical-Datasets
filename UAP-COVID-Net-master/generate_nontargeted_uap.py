@@ -8,7 +8,7 @@ from uap_utils import (get_foolingrate_rate, get_preds, make_adv_img, set_up,
                        show_confusion_matrix)
 
 parser = argparse.ArgumentParser(description='COVID-Net Evaluation')
-parser.add_argument('--weightspath', default='COVIDNet-CXR-3',
+parser.add_argument('--weightspath', default='../../COVIDNet-CXR-3',
                     type=str, help='Path to output folder')
 parser.add_argument('--metaname', default='model.meta',
                     type=str, help='Name of ckpt meta file')

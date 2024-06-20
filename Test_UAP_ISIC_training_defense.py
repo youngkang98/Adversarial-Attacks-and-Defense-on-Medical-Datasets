@@ -311,8 +311,8 @@ optimizer.load_state_dict(checkpoint['optimizerC'])
 classifier = PyTorchClassifier(
     model=model,
     loss=criterion,
+    input_shape=(3,256,256),
     optimizer=optimizer,
-    input_shape=(3, 32, 32),
     nb_classes=num_classes,
     device_type='gpu',
     preprocessing=None
@@ -321,8 +321,8 @@ classifier = PyTorchClassifier(
 clean_classifier = PyTorchClassifier(
     model=model,
     loss=criterion,
+    input_shape=(3,256,256),
     optimizer=optimizer,
-    input_shape=(3, 32, 32),
     nb_classes=num_classes,
     device_type='gpu',
     preprocessing=None
@@ -385,7 +385,7 @@ adversarial_x, adversarial_y = adv_training_dataset[0:]
 # train_x, train_y = train_dataset[0:]
 # adversarial_x_adv = pgd.generate(adversarial_x)
 
-adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.0004,eps_step=2 / 255,classifier = clean_classifier,batch_size=16)
+adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.04,eps_step=2 / 255,classifier = clean_classifier,batch_size=32)
 adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=50)
 # 
 # adversarial_x_comb  = np.append(adversarial_x_adv,train_x,axis=0)
