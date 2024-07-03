@@ -297,36 +297,37 @@ model = resnet50()
 # model = create_resnet(18, num_classes)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
-model.load_state_dict(checkpoint['netC'])
+# model.load_state_dict(checkpoint['netC'])
 # model.load_state_dict(checkpoint['state_dict'])
 model.train()
 # model.eval()
 
+
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=0.9, weight_decay=5e-4)
-optimizer.load_state_dict(checkpoint['optimizerC'])
+optimizer = torch.optim.SGD(model.parameters(), 1e-4, momentum=0.9, weight_decay=5e-4)
+# optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
 classifier = PyTorchClassifier(
     model=model,
     loss=criterion,
+    input_shape=(3,256,256),
     optimizer=optimizer,
-    input_shape=(3, 32, 32),
     nb_classes=num_classes,
     device_type='gpu',
     preprocessing=None
 )
 
-clean_classifier = PyTorchClassifier(
-    model=model,
-    loss=criterion,
-    optimizer=optimizer,
-    input_shape=(3, 32, 32),
-    nb_classes=num_classes,
-    device_type='gpu',
-    preprocessing=None
-)
+# clean_classifier = PyTorchClassifier(
+#     model=model,
+#     loss=criterion,
+#     input_shape=(3,256,256),
+#     optimizer=optimizer,
+#     nb_classes=num_classes,
+#     device_type='gpu',
+#     preprocessing=None
+# )
 # Universal Perturbation parameters
 mean_inf_train = 0.57  # Modify as needed
 
@@ -337,12 +338,12 @@ mean_inf_train = 0.57  # Modify as needed
 # test(model,eval_loader,"clean")
 
 # Evaluation without noise
-val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean")
-save_results_to_file("clean_result.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
-classificationReportFileName = 'classification_report_clean.txt'
-generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+# print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+# plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean")
+# save_results_to_file("clean_result.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
+# classificationReportFileName = 'classification_report_clean.txt'
+# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
 
 # Defense Testing
@@ -359,10 +360,10 @@ generate_classification_report(true_labels,pred_labels,classificationReportFileN
 # Adversarial trainer
 # FastGradientMethod ProjectedGradientDescent
 # test fgsm 0.4,0.004
-attack_fgm = ProjectedGradientDescent(
-    estimator=clean_classifier, 
-    eps=8.0/255.0
-    )
+# attack_fgm = ProjectedGradientDescent(
+#     estimator=clean_classifier, 
+#     eps=8.0/255.0
+#     )
 
 # pgd = ProjectedGradientDescent(classifier, eps=8 / 255, eps_step=2 / 255, max_iter=100, num_random_init=1)
 # pgd = ProjectedGradientDescent(classifier, eps=0.04, eps_step=0.024, max_iter=100, num_random_init=1)
@@ -381,12 +382,13 @@ attack_fgm = ProjectedGradientDescent(
 #     ratio=1
 #     )
 
-adversarial_x, adversarial_y = adv_training_dataset[0:]
+adversarial_x, adversarial_y = adv_training_dataset[0:2500]
+clean_x, clean_y = adv_training_dataset[2500:]
 # train_x, train_y = train_dataset[0:]
 # adversarial_x_adv = pgd.generate(adversarial_x)
 
-adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.0004,eps_step=2 / 255,classifier = clean_classifier,batch_size=16)
-adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=50)
+adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.04,eps_step=1 / 255,classifier = classifier,batch_size=32)
+adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=100)
 # 
 # adversarial_x_comb  = np.append(adversarial_x_adv,train_x,axis=0)
 # adversarial_y       = np.append(adversarial_y,train_y,axis=0)
@@ -419,6 +421,14 @@ print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val 
 plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain")
 save_results_to_file("evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
 classificationReportFileName = 'classification_report_clean_after_advtrain.txt'
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+
+madry_classifier.fit(clean_x,clean_y, batch_size= 32, nb_epochs= 100, verbose=True)
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(madry_classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain_2")
+save_results_to_file("evaluation_result_after_adv_train_2.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+classificationReportFileName = 'classification_report_clean_after_advtrain_2.txt'
 generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
 
@@ -492,7 +502,7 @@ for current_attack_eps in attack_eps:
                 #------------------------------------
                 # Generate targeted attack
                 adv_crafter = TargetedUniversalPerturbation(
-                    clean_classifier,
+                    classifier,
                     attacker='fgsm',
                     delta=0.000001,
                     attacker_params={'targeted': True, 'eps': current_attack_eps},
@@ -512,7 +522,7 @@ for current_attack_eps in attack_eps:
             else:
                 #Generate universal attack
                 adv_crafter = UniversalPerturbation(
-                    clean_classifier,
+                    classifier,
                     attacker='fgsm',
                     delta=0.000001,#0.000001,
                     attacker_params={'targeted': False, 'eps': current_attack_eps}, #eps = 0.001,0.0024

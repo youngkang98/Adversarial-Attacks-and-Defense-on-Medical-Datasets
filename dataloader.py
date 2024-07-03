@@ -213,6 +213,57 @@ class OCTDataset(Dataset):
                     self.labels.append(class_to_idx[class_name])
                     
 
+from torch.utils.data import Dataset
+
+class COVID19Dataset(Dataset):
+    def __init__(self, csv_file, root_dir, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None):
+        self.data = pd.read_csv(csv_file)
+        self.root_dir = root_dir
+        self.transform = transform
+        self.one_hot_encode = one_hot_encode
+        self.num_classes = num_classes
+        
+        # If exclude_first_n is provided, exclude the first n images
+        if exclude_first_n is not None:
+            self.data = self.data.iloc[exclude_first_n:]
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            images, labels = [], []
+            for i in range(*idx.indices(len(self))):
+                img, label = self.get_item(i)
+                images.append(img)
+                labels.append(label)
+            images_np = np.array([np.array(img) for img in images])
+            labels_np = np.array(labels)
+            return images_np, labels_np
+        else:
+            return self.get_item(idx)
+    
+    def get_item(self, idx):
+        row = self.data.iloc[idx]
+        img_name = row['image_name']
+        label = row['label']
+        img_path = os.path.join(self.root_dir, img_name)
+        image = Image.open(img_path).convert("RGB")
+        
+        if self.one_hot_encode and self.num_classes is not None:
+            label = self._one_hot_encode_label(label)
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
+    
+    def _one_hot_encode_label(self, label):
+        one_hot = np.zeros(self.num_classes)
+        one_hot[label] = 1
+        return one_hot
+                    
+
 def load_data(datapath, trainfile, testfile):
     if os.path.exists(datapath + '/x_train.npy'):
         x_train = np.load(datapath + '/x_train.npy')
