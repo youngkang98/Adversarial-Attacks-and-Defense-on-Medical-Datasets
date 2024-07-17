@@ -23,6 +23,26 @@ classes = ['melanoma', 'seborrheic keratosis', 'nevus', 'basal cell carcinoma', 
 
 from torch.utils.data import Dataset
 
+class ISIC2018Dataset(Dataset):
+    def __init__(self, df, transform=None, target_transform=None):
+        self.df = df
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        documentDir = os.path.expanduser('~\Documents')
+        imageDir = os.path.join(documentDir, self.df['path'][idx])
+        image = Image.open(imageDir).convert("RGB")
+        label = torch.tensor(int(self.df['label_idx'][idx]))
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            label = self.target_transform(label)
+        return image, label
+
 class ISICDataset(Dataset):
     def __init__(self, datapath, csv_file, data_type, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None):
         self.datapath = datapath
