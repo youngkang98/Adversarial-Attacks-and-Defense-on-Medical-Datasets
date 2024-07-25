@@ -8,7 +8,7 @@ Created on Sun Aug 13 13:20:41 2023
 import torch
 import torch.nn as nn
 import torchvision
-from torchvision.models import resnet50
+from torchvision.models import resnet50, inception_v3, Inception_V3_Weights, resnet18
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
 from dataloader import ISICDataset, get_transform
@@ -183,8 +183,8 @@ def generate_classification_report(true_labels, pred_labels,fileName):
 
 datapath = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
 # testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
-trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train_012.csv'
-testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test_012.csv'
+trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
+testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
 train_data_path = 'C:/Users/lkang/Documents/ISIC_2019_train/'
 test_data_path = 'C:/Users/lkang/Documents/ISIC_2019_test/'
 # testfile = 'C:/Users/lkang/Documents/Master_Code_backup/New UAP/ISIC2019_test_02.csv'
@@ -198,7 +198,7 @@ adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_Adversarial_012.csv
 # Load the previously trained model
 # num_classes = 2
 # num_classes = 4
-num_classes = 3
+num_classes = 8
 # checkpoint = torch.load('C:/Users/lkang/Documents/Acc75_Epoch50_ BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Acc73_Epoch100_BS16_4class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Cifar10_Acc76_BS16/cifar10_morph.pth.tar',map_location ='cpu')
@@ -221,8 +221,8 @@ image_counts = [1773]
 iterations = [25]
 # eps = [0.0005,0.001,0.002,0.005,0.01,0.02,0.03,0.04,0.05]
 # attack_eps = [0.0005,0.001,0.002,0.005,0.01,0.02,0.03,0.04,0.05]
-eps = [0.04]
-attack_eps = [0.0024]
+eps = [4/255]
+attack_eps = [4/255]
 remap = False
 targeted_attack = False
 
@@ -234,6 +234,13 @@ test_transform = transforms.Compose([
     transforms.ToTensor(),
     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
+
+
+# test_transform = transforms.Compose([
+#     transforms.Resize((299, 299)),
+#     transforms.ToTensor(),
+#     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+# ])
 
 # test_transform = transforms.Compose([
 #     transforms.Resize((32, 32)),  # Resize to match CIFAR-10 dimensions
@@ -281,18 +288,19 @@ eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
 eval_dataset_length = len(eval_dataset)
 print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
-adv_training_dataset = ISICDataset(datapath, trainfile, 'train_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
+adv_training_dataset = ISICDataset(datapath, trainfile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
 adv_training_loader = DataLoader(adv_training_dataset, batch_size=16, shuffle=True)
 adv_training_length = len(adv_training_dataset)
 print(f"Number of images in the adv training dataset: {adv_training_length}")
 
-noise_dataset = ISICDataset(datapath, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-noise_loader = DataLoader(noise_dataset, batch_size=16, shuffle=True)
-noise_length = len(noise_dataset)
-print(f"Number of images in the adv training dataset: {noise_length}")
+# noise_dataset = ISICDataset(datapath, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+# noise_loader = DataLoader(noise_dataset, batch_size=16, shuffle=True)
+# noise_length = len(noise_dataset)
+# print(f"Number of images in the noise dataset: {noise_length}")
 
 device = 'cuda'
-model = resnet50()
+model = resnet50(pretrained=True)
+# model = inception_v3(pretrained=True)
 # model = PreActResNet50()
 # model = create_resnet(18, num_classes)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -305,7 +313,7 @@ model.train()
 
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), 1e-4, momentum=0.9, weight_decay=5e-4)
+optimizer = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9, weight_decay=5e-4)
 # optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
@@ -382,13 +390,69 @@ mean_inf_train = 0.57  # Modify as needed
 #     ratio=1
 #     )
 
-adversarial_x, adversarial_y = adv_training_dataset[0:2500]
-clean_x, clean_y = adv_training_dataset[2500:]
-# train_x, train_y = train_dataset[0:]
-# adversarial_x_adv = pgd.generate(adversarial_x)
+# adversarial_x, adversarial_y = adv_training_dataset[0:8000]
+# clean_x, clean_y = adv_training_dataset[8000:]
 
-adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 50,eps = 0.04,eps_step=1 / 255,classifier = classifier,batch_size=32)
-adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=100)
+# Assuming these are the class distributions
+class_distributions = {
+    0: 2813,
+    1: 10272,
+    2: 1608,
+    3: 410,
+    4: 1914,
+    5: 163,
+    6: 177,
+    7: 374
+}
+
+# Set the percentage split for adversarial training
+adv_train_percentage = 0.7  # Adjust this value as needed (e.g., 0.5 for 50%, 0.7 for 70%)
+
+# Collect all images and labels
+all_images = []
+all_labels = []
+
+for images, labels in adv_training_loader:  # Assuming adv_training_loader is defined
+    for img, label in zip(images, labels):
+        all_images.append(img)
+        all_labels.append(label)
+
+# Initialize data structures to hold the split data
+adv_images = []
+adv_labels = []
+clean_images = []
+clean_labels = []
+
+# Initialize class-specific image collections
+class_images = defaultdict(list)
+for img, label in zip(all_images, all_labels):
+    class_images[label.item()].append(img)
+
+# Split images into adversarial and clean training sets
+for class_idx, images in class_images.items():
+    split_point = int(len(images) * adv_train_percentage)
+    random.shuffle(images)
+    adv_images.extend(images[:split_point])
+    adv_labels.extend([torch.tensor(class_idx)] * split_point)
+    clean_images.extend(images[split_point:])
+    clean_labels.extend([torch.tensor(class_idx)] * (len(images) - split_point))
+
+# Convert lists to tensors for training
+adv_x_subset = torch.stack(adv_images).cpu().numpy()
+adv_y_subset = torch.tensor(adv_labels).cpu().numpy()
+
+clean_x_subset = torch.stack(clean_images).cpu().numpy()
+clean_y_subset = torch.tensor(clean_labels).cpu().numpy()
+
+print(f"Adversarial training set class distribution: {defaultdict(int, {i: adv_labels.count(torch.tensor(i)) for i in range(8)})}")
+print(f"Clean training set class distribution: {defaultdict(int, {i: clean_labels.count(torch.tensor(i)) for i in range(8)})}")
+
+# Assuming classifier is a defined and properly instantiated PyTorchClassifier
+adv_trainer = AdversarialTrainerMadryPGD(classifier, nb_epochs=100, eps=0.04, eps_step=1/255, batch_size=32)
+adv_trainer.fit(adv_x_subset, adv_y_subset)
+
+
+
 # 
 # adversarial_x_comb  = np.append(adversarial_x_adv,train_x,axis=0)
 # adversarial_y       = np.append(adversarial_y,train_y,axis=0)
@@ -412,7 +476,7 @@ success_rate = 0
 
 # classifier.fit(adversarial_x_adv, adversarial_y, batch_size= 16, nb_epochs= 50, verbose=True)
 
-model.eval()
+# model.eval()
 
 # Evaluation madry_pgd
 madry_classifier = adv_trainer.get_classifier()
@@ -423,7 +487,10 @@ save_results_to_file("evaluation_result_after_adv_train.txt",val_loss_no_noise,v
 classificationReportFileName = 'classification_report_clean_after_advtrain.txt'
 generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
-madry_classifier.fit(clean_x,clean_y, batch_size= 32, nb_epochs= 100, verbose=True)
+
+madry_classifier.fit(clean_x_subset,clean_y_subset, batch_size= 32, nb_epochs= 50, verbose=True)
+
+model.train()
 val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(madry_classifier, eval_loader, criterion, device,remap=remap)
 print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
 plot_confusion_matrix(true_labels, pred_labels, "confusion_matrix_clean_after_advtrain_2")
@@ -452,7 +519,7 @@ for current_attack_eps in attack_eps:
             class_image_count = defaultdict(int)
             image_list.clear()
             
-            for images, labels in noise_loader:
+            for images, labels in adv_training_loader:
                 for img, label in zip(images, labels):
                     label_index = label.item()
                     # Calculate the allowed count for the current class
