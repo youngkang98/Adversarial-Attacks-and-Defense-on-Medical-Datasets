@@ -11,7 +11,7 @@ import torchvision
 from torchvision.models import resnet50
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
-from dataloader import ISICDataset, get_transform, COVID19Dataset
+from dataloader import ISICDataset, get_transform, COVID19Dataset,COVID19Dataset_New
 from art.estimators.classification import PyTorchClassifier
 from art.attacks.evasion import UniversalPerturbation,TargetedUniversalPerturbation
 from art.defences.trainer import AdversarialTrainerFBFPyTorch,AdversarialTrainerMadryPGD
@@ -35,6 +35,11 @@ import torchvision.datasets as datasets
 
 import warnings
 warnings.filterwarnings("ignore")
+
+import time
+
+# Start the timer
+start_time = time.time()
 
 def plot_confusion_matrix(true_labels,pred_labels,name):
     # Compute the confusion matrix
@@ -183,8 +188,10 @@ def generate_classification_report(true_labels, pred_labels,fileName):
 
 datapath = 'C:/Users/lkang/Documents/COVID-Net/'
 # testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
-trainfile = 'Wanet/train_COVIDx8A.csv'
-testfile = 'Wanet/test_COVIDx8A.csv'
+# trainfile = 'Wanet/train_COVIDx8A.csv'
+# testfile = 'Wanet/test_COVIDx8A.csv'
+trainfile = 'Wanet/train_COVIDx8B.txt'
+testfile = 'Wanet/test_COVIDx8B.txt'
 train_data_path = 'C:/Users/lkang/Documents/ISIC_2019_train/'
 test_data_path = 'C:/Users/lkang/Documents/ISIC_2019_test/'
 result_folder = 'COVID19_Result/'
@@ -199,13 +206,13 @@ adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_Adversarial_012.csv
 # Load the previously trained model
 # num_classes = 2
 # num_classes = 4
-num_classes = 3
+num_classes = 2
 # checkpoint = torch.load('C:/Users/lkang/Documents/Acc75_Epoch50_ BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Acc73_Epoch100_BS16_4class/ISIC2019_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/Cifar10_Acc76_BS16/cifar10_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc75_Epoch60_BS32_Clean/ISIC2019_morph.pth.tar',map_location ='cpu')
 
-checkpoint = torch.load('C:/Users/lkang/Documents/COVID-19Model/Acc96_epoch50_8atxt/COVID-19_morph.pth.tar',map_location ='cpu')
+# checkpoint = torch.load('C:/Users/lkang/Documents/COVID-19Model/Acc96_epoch50_8atxt/COVID-19_morph.pth.tar',map_location ='cpu')
 # checkpoint = torch.load('C:/Users/lkang/Documents/04-16_skinV2_Resnet18_250_128_0.01/checkpoint.pth.tar',map_location ='cpu')
 # Number of images to use for noise generation
 image_count = 1773
@@ -288,26 +295,29 @@ test_transform = transforms.Compose([
 
 # Dataset for evaluation (excluding the images used for noise generation)
 # eval_dataset = ISICDataset(datapath, testfile, 'test_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-eval_dataset = COVID19Dataset(csv_file = testfile, 
-                              root_dir = datapath+'test', 
-                              transform = test_transform,)
-eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
+# eval_dataset = COVID19Dataset(csv_file = testfile, 
+#                               root_dir = datapath+'test', 
+#                               transform = test_transform,)
+eval_dataset = COVID19Dataset_New(testfile, datapath+'test',test_transform)
+eval_loader = DataLoader(eval_dataset, batch_size=32, shuffle=True)
 eval_dataset_length = len(eval_dataset)
 print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
 # adv_training_dataset = ISICDataset(datapath, trainfile, 'train_data', transform=test_transform, one_hot_encode= True, num_classes=num_classes)
-adv_training_dataset = COVID19Dataset(csv_file = trainfile, 
-                                      root_dir = datapath+'train', 
-                                      transform = test_transform,
-                                      one_hot_encode = True,
-                                      num_classes = num_classes)
-adv_training_loader = DataLoader(adv_training_dataset, batch_size=16, shuffle=True)
+# adv_training_dataset = COVID19Dataset_New(csv_file = trainfile, 
+#                                       root_dir = datapath+'train', 
+#                                       transform = test_transform,
+#                                       one_hot_encode = True,
+#                                       num_classes = num_classes)
+adv_training_dataset = COVID19Dataset_New(trainfile, datapath+'train',test_transform)
+adv_training_loader = DataLoader(adv_training_dataset, batch_size=32, shuffle=True)
 adv_training_length = len(adv_training_dataset)
 print(f"Number of images in the adv training dataset: {adv_training_length}")
 
 # noise_dataset = ISICDataset(datapath, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-noise_dataset = COVID19Dataset(csv_file = testfile, root_dir = datapath +'test', transform = test_transform)
-noise_loader = DataLoader(noise_dataset, batch_size=16, shuffle=True)
+# noise_dataset = COVID19Dataset(csv_file = testfile, root_dir = datapath +'test', transform = test_transform)
+noise_dataset = COVID19Dataset_New(testfile, datapath+'test',test_transform)
+noise_loader = DataLoader(noise_dataset, batch_size=32, shuffle=True)
 noise_length = len(noise_dataset)
 print(f"Number of images in the adv training dataset: {noise_length}")
 
@@ -317,15 +327,15 @@ model = resnet50()
 # model = create_resnet(18, num_classes)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
-model.load_state_dict(checkpoint['netC'])
+# model.load_state_dict(checkpoint['netC'])
 # model.load_state_dict(checkpoint['state_dict'])
 model.train()
 # model.eval()
 
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), 1e-2, momentum=0.9, weight_decay=5e-4)
-optimizer.load_state_dict(checkpoint['optimizerC'])
+optimizer = torch.optim.SGD(model.parameters(), 1e-4, momentum=0.9, weight_decay=5e-4)
+# optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
 classifier = PyTorchClassifier(
@@ -338,15 +348,15 @@ classifier = PyTorchClassifier(
     preprocessing=None
 )
 
-clean_classifier = PyTorchClassifier(
-    model=model,
-    loss=criterion,
-    input_shape=(3,224,224),
-    optimizer=optimizer,
-    nb_classes=num_classes,
-    device_type='gpu',
-    preprocessing=None
-)
+# clean_classifier = PyTorchClassifier(
+#     model=model,
+#     loss=criterion,
+#     input_shape=(3,224,224),
+#     optimizer=optimizer,
+#     nb_classes=num_classes,
+#     device_type='gpu',
+#     preprocessing=None
+# )
 # Universal Perturbation parameters
 mean_inf_train = 0.57  # Modify as needed
 
@@ -357,12 +367,12 @@ mean_inf_train = 0.57  # Modify as needed
 # test(model,eval_loader,"clean")
 
 # Evaluation without noise
-val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-plot_confusion_matrix(true_labels, pred_labels, result_folder + "confusion_matrix_clean")
-save_results_to_file(result_folder + "clean_result.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
-classificationReportFileName = result_folder + "classification_report_clean.txt"
-generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+# print(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+# plot_confusion_matrix(true_labels, pred_labels, result_folder + "confusion_matrix_clean")
+# save_results_to_file(result_folder + "clean_result.txt",val_loss_no_noise,val_acc_no_noise, 0, 0,0,targeted=False)
+# classificationReportFileName = result_folder + "classification_report_clean.txt"
+# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
 
 # Defense Testing
@@ -404,16 +414,15 @@ generate_classification_report(true_labels,pred_labels,classificationReportFileN
 # # adversarial_x_adv = pgd.generate(adversarial_x)
 
 
-adversarial_x, adversarial_y = adv_training_dataset[0:1000]
+adversarial_x, adversarial_y = adv_training_dataset[0:]
 
 adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 30,
-                                         eps = 0.02,
-                                         eps_step=2 / 255, 
-                                         classifier = clean_classifier,
-                                         batch_size=32,
-                                         max_iter=10,
-                                         num_random_init=1)
-adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=30)
+                                         eps = 0.04,
+                                         eps_step=1 / 255, 
+                                         classifier = classifier,
+                                         batch_size=32)
+
+adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=100)
 # 
 # adversarial_x_comb  = np.append(adversarial_x_adv,train_x,axis=0)
 # adversarial_y       = np.append(adversarial_y,train_y,axis=0)
@@ -519,7 +528,7 @@ for current_attack_eps in attack_eps:
                 #------------------------------------
                 # Generate targeted attack
                 adv_crafter = TargetedUniversalPerturbation(
-                    clean_classifier,
+                    classifier,
                     attacker='fgsm',
                     delta=0.000001,
                     attacker_params={'targeted': True, 'eps': current_attack_eps},
@@ -539,7 +548,7 @@ for current_attack_eps in attack_eps:
             else:
                 #Generate universal attack
                 adv_crafter = UniversalPerturbation(
-                    clean_classifier,
+                    classifier,
                     attacker='fgsm',
                     delta=0.000001,#0.000001,
                     attacker_params={'targeted': False, 'eps': current_attack_eps}, #eps = 0.001,0.0024
@@ -588,3 +597,9 @@ for current_attack_eps in attack_eps:
             classificationReportFileName = result_folder + f'classification_report_{image_count}_att{current_attack_eps}_eps{current_eps}.txt'
             generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
+end_time = time.time()
+
+# Calculate the elapsed time
+elapsed_time = end_time - start_time
+
+print(f"Time taken to run the code: {elapsed_time} seconds")
