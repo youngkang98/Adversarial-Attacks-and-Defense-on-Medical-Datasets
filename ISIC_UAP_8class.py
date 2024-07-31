@@ -186,12 +186,12 @@ datapath = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
 train_data_path = 'C:/Users/lkang/Documents/ISIC_2019_train/'
 test_data_path = 'C:/Users/lkang/Documents/ISIC_2019_test/'
 
-trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train_012.csv'
-testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test_012.csv'
-adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train_012.csv'
+trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
+testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test.csv'
+adversarialFile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
 
 # Load the previously trained model
-num_classes = 3
+num_classes = 8
 # Number of images to use for noise generation
 image_count = 1773
 
@@ -200,13 +200,13 @@ image_counts = [525,473,420,368,315,263,210,158,105,53]
 
 # checkpoint
 # checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
-checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc81_Epoch100_BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
+checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc61_advtrain_Epoch100_BS32_8class/classifier_checkpoint.pth',map_location ='cpu')
 
 iterations = [25]
 eps = [0.04]
 attack_eps = [0.0024]
 remap = False
-targeted_attack = True
+targeted_attack = False
 # Specify the target class as an integer (e.g., 2 for "Basal cell carcinoma")
 target_class = 2
 # Define the different percentages for adversarial training
@@ -237,16 +237,16 @@ device = 'cuda'
 model = resnet50()
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
-# model.load_state_dict(checkpoint['model_state_dict'])
-model.load_state_dict(checkpoint['netC'])
+model.load_state_dict(checkpoint['model_state'])
+# model.load_state_dict(checkpoint['netC'])
 model.eval()
 
 
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), 1e-4, momentum=0.9, weight_decay=5e-4)
-# optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-optimizer.load_state_dict(checkpoint['optimizerC'])
+optimizer.load_state_dict(checkpoint['optimizer_state'])
+# optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
 classifier = PyTorchClassifier(
