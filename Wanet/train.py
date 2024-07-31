@@ -17,7 +17,10 @@ from utils.dataloader import PostTensorTransform, get_dataloader,CSVDataset
 from utils.utils import progress_bar
 
 from torchvision import datasets, transforms, models
+import time
 
+# Start the timer
+start_time = time.time()
 
 def get_model(opt):
     netC = None
@@ -108,9 +111,9 @@ def train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_
         else:
             total_inputs = inputs
             total_targets = targets
-        start = time()
+        # start = time()
         total_preds = netC(total_inputs)
-        total_time += time() - start
+        # total_time += time() - start
 
         loss_ce = criterion_CE(total_preds, total_targets)
 
@@ -155,7 +158,7 @@ def train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_
             progress_bar(
                 batch_idx,
                 len(train_dl),
-                "CE Loss: {:.4f} | Clean Acc: {:.4f} | Bd Acc: {:.4f} ".format(avg_loss_ce, avg_acc_clean, avg_acc_bd),
+                "CE Loss: {:.4f} | Clean Acc: {:.4f} | Bd Acc: {:.4f} | Total inputs: {:.4f} | Total bd: {:.4f}".format(avg_loss_ce, avg_acc_clean, avg_acc_bd,total_sample, total_bd),
             )
         else:
             progress_bar(
@@ -384,7 +387,7 @@ def main():
     train_dl = get_dataloader(opt, True,set_ISIC2019='Train')
     test_dl = get_dataloader(opt, False,set_ISIC2019='Test')
     
-    attack = False
+    attack = True
 
     # prepare model
     netC, optimizerC, schedulerC = get_model(opt)
@@ -441,7 +444,7 @@ def main():
 
     for epoch in range(epoch_current, opt.n_iters):
         print("Epoch {}:".format(epoch + 1))
-        train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_writer, epoch, opt)
+        train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_writer, epoch, opt,attack)
         best_clean_acc, best_bd_acc, best_cross_acc = eval(
             netC,
             optimizerC,
@@ -455,8 +458,18 @@ def main():
             tf_writer,
             epoch,
             opt,
+            attack
         )
 
 
 if __name__ == "__main__":
     main()
+    #====================================================================
+    # End the timer
+    end_time = time.time()
+
+    # Calculate the elapsed time
+    elapsed_time = end_time - start_time
+
+    print(f"Time taken to run the code: {elapsed_time} seconds")
+

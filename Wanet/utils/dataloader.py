@@ -235,7 +235,7 @@ def get_dataloader(opt, train=True,set_ISIC2019='Train', pretensor_transform=Fal
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                                transform=transform, add_extension='.jpg',
                                # split='C:/Users/lkang/Documents/txt/train'+str(opt.split_idx)+'.txt')
-                                split='C:/Users/lkang/Documents/txt/ISIC2019_train_012.txt')
+                                split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_train_012.txt')
                                 # split='/media/userdisk1/yf/ISIC2019/txt/train'+str(opt.split_idx)+'.txt')
         elif set_ISIC2019 == 'Val':
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
@@ -245,7 +245,7 @@ def get_dataloader(opt, train=True,set_ISIC2019='Train', pretensor_transform=Fal
             dataset=CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                               transform=transform, add_extension='.jpg',
                               # split='C:/Users/lkang/Documents/txt/test' + str(opt.split_idx) + '.txt')
-                              split='C:/Users/lkang/Documents/txt/ISIC2019_test_012.txt')
+                              split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_test_012.txt')
         else:
             print ('Wrong set_ISIC2019',set_ISIC2019)
     elif opt.dataset=='Echo':
