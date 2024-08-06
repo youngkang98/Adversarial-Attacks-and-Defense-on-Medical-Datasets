@@ -393,18 +393,6 @@ mean_inf_train = 0.57  # Modify as needed
 # adversarial_x, adversarial_y = adv_training_dataset[0:8000]
 # clean_x, clean_y = adv_training_dataset[8000:]
 
-# Assuming these are the class distributions
-class_distributions = {
-    0: 2813,
-    1: 10272,
-    2: 1608,
-    3: 410,
-    4: 1914,
-    5: 163,
-    6: 177,
-    7: 374
-}
-
 # Set the percentage split for adversarial training
 adv_train_percentage = 0.7  # Adjust this value as needed (e.g., 0.5 for 50%, 0.7 for 70%)
 
