@@ -66,7 +66,7 @@ def remap_labels(labels):
     return torch.tensor([label_mapping[label.item()] for label in labels])
 
 # Update your evaluate function
-def evaluate(classifier, loader, criterion, device, noise_tensor=None, add_noise=False, remap=False,eps_current=[0,0],image_count = 0):
+def evaluate_2(classifier, loader, criterion, device, noise_tensor=None, add_noise=False, remap=False,eps_current=[0,0],image_count = 0):
     classifier._model.eval()
     val_loss = 1.0
     val_acc = 0.0
@@ -153,8 +153,8 @@ trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train_012.csv'
 testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test_012.csv'
 # train_data_path = 'C:/Users/lkang/Documents/ISIC_2019_train/'
 # test_data_path = 'C:/Users/lkang/Documents/ISIC_2019_test/'
-train_data_path = '../OCT2017/train'
-test_data_path = '../OCT2017/test'
+train_data_path = '../chest_xray/train'
+test_data_path = '../chest_xray/test'
 
 num_classes = 4
 
@@ -185,7 +185,16 @@ test_transform = transforms.Compose([
     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-train_dataset =  datasets.ImageFolder(train_data_path,test_transform)
+train_transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+test_transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+
+train_dataset =  datasets.ImageFolder(train_data_path,train_transform)
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 train_dataset_length = int(len(train_dataset))
 print(f"Number of images in the train dataset: {train_dataset_length}")
@@ -196,69 +205,90 @@ eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
 print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
 device = 'cuda'
+# Load the model
 model = resnet50()
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
-model.eval()
-
+model.train()
 # Define the loss function and the optimizer
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), 1e-4, momentum=0.9, weight_decay=5e-4)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=5e-4)
 
-# Create the ART classifier
-classifier = PyTorchClassifier(
-    model=model,
-    loss=criterion,
-    input_shape=(3,256,256),
-    optimizer=optimizer,
-    nb_classes=num_classes,
-    device_type='gpu',
-    preprocessing=None
-)
+# # Create the ART classifier
+# classifier = PyTorchClassifier(
+#     model=model,
+#     loss=criterion,
+#     input_shape=(3, 256, 256),
+#     optimizer=optimizer,
+#     nb_classes=num_classes,
+#     device_type='gpu'
+# )
 
-# Training function using ART
-def art_train(classifier, train_loader, epochs):
+# Training function
+def train(model, train_loader, criterion, optimizer, device, epochs):
+    model.train()
     for epoch in range(epochs):
         running_loss = 0.0
         for inputs, labels in train_loader:
-            inputs, labels = inputs.numpy(), to_categorical(labels.numpy(), num_classes)
-            classifier.fit(inputs, labels, batch_size=16, nb_epochs=1)
-            running_loss += classifier.compute_loss(inputs, labels)
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
         print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {running_loss / len(train_loader):.4f}")
 
-# Evaluation function using ART
-def art_evaluate(classifier, eval_loader):
+# Evaluation function
+def evaluate(model, eval_loader, criterion, device):
+    model.eval()
+    running_loss = 0.0
     correct = 0
     total = 0
-    eval_loss = 0.0
-    for inputs, labels in eval_loader:
-        inputs, labels = inputs.numpy(), to_categorical(labels.numpy(), num_classes)
-        predictions = classifier.predict(inputs)
-        eval_loss += classifier.compute_loss(inputs, labels)
-        predicted_classes = torch.argmax(torch.tensor(predictions), dim=1)
-        correct += (predicted_classes == torch.tensor(labels).argmax(dim=1)).sum().item()
-        total += labels.shape[0]
-    accuracy = 100 * correct / total
-    return eval_loss / len(eval_loader), accuracy
+    with torch.no_grad():
+        for inputs, labels in eval_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
 
-# Training loop using ART
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            running_loss += loss.item()
+
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    accuracy = 100 * correct / total
+    return running_loss / len(eval_loader), accuracy
+
+# Training loop
 num_epochs = 50
-art_train(classifier, train_loader, num_epochs)
+train(model, train_loader, criterion, optimizer, device, num_epochs)
 
 # Evaluate the model
-eval_loss, eval_accuracy = art_evaluate(classifier, eval_loader)
+eval_loss, eval_accuracy = evaluate(model, eval_loader, criterion, device)
 print(f"Eval Loss: {eval_loss:.4f}, Eval Accuracy: {eval_accuracy:.2f}%")
 
+
 save_path = 'model'
-# Save the classifier, model, and optimizer state
+# # Save the classifier, model, and optimizer state
+# checkpoint = {
+#     'model_state_dict': model.state_dict(),
+#     'optimizer_state_dict': optimizer.state_dict(),
+#     'classifier': classifier,
+# }
+
+# os.makedirs(save_path, exist_ok=True)
+# torch.save(checkpoint, os.path.join(save_path, 'OCT_Model_epoch50_BS16.pth'))
+
+# Save the model and optimizer state
 checkpoint = {
     'model_state_dict': model.state_dict(),
     'optimizer_state_dict': optimizer.state_dict(),
-    'classifier': classifier,
 }
 
 os.makedirs(save_path, exist_ok=True)
-torch.save(checkpoint, os.path.join(save_path, 'OCT_Model_epoch50_BS16.pth'))
+torch.save(checkpoint, os.path.join(save_path, 'chest_xray_epoch50_BS16.pth'))
 # val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
 # print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
 

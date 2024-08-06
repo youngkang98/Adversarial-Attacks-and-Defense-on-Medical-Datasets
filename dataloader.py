@@ -174,7 +174,90 @@ class ISICDatasetTF:
         dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
         dataset = dataset.map(self.parse_function, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         return dataset
+
+class DatasetSeprateByClass(Dataset):
+    def __init__(self, root_dir, csv_file, data_type, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None, img_extension='.jpeg'):
+        self.root_dir = root_dir
+        self.csv_file = csv_file
+        self.transform = transform
+        self.data_type = data_type
+        self.data = []
+        self.labels = []
+        self.one_hot_encode = one_hot_encode
+        self.num_classes = num_classes
+        self.img_extension = img_extension  # Default image extension
+        
+        # Load data and labels from CSV file or pre-processed files
+        self._load_data()
+
+        # If exclude_first_n is provided, exclude the first n images
+        if exclude_first_n is not None:
+            self.data = self.data[exclude_first_n:]
+            self.labels = self.labels[exclude_first_n:]
     
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        # Check if idx is a slice
+        if isinstance(idx, slice):
+            images, labels = [], []
+            for i in range(*idx.indices(len(self))):
+                img, label = self.get_item(i)
+                images.append(img)
+                labels.append(label)
+            
+            # Convert lists to numpy arrays
+            images_np = np.array([np.array(img) for img in images])  # Ensure images are numpy arrays
+            labels_np = np.array(labels)
+            return images_np, labels_np
+        else:
+            return self.get_item(idx)
+    
+    def get_item(self, idx):
+        img_name = self.data[idx] + self.img_extension
+        label = self.labels[idx]
+        
+        # Dynamically construct the full path to the image
+        img_path = os.path.join(self.root_dir, str(label), img_name)
+        image = Image.open(img_path).convert("RGB")
+        
+        # Check if one-hot encoding is needed
+        if self.one_hot_encode and self.num_classes is not None:
+            one_hot_label = self._one_hot_encode_label(label)
+        else:
+            one_hot_label = label
+        
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        # Return one-hot encoded label if needed
+        return image, one_hot_label if self.one_hot_encode else label
+    
+    def _one_hot_encode_label(self, label):
+        one_hot = np.zeros(self.num_classes)
+        one_hot[label] = 1
+        return one_hot
+        
+    def _load_data(self):
+        if os.path.exists(self.root_dir + '/x_{}.npy'.format(self.data_type)):
+            self.data = np.load(self.root_dir + '/x_{}.npy'.format(self.data_type))
+            self.labels = np.load(self.root_dir + '/y_{}.npy'.format(self.data_type))
+        else:
+            with open(self.csv_file, 'r') as file:
+                csv_reader = csv.reader(file)
+                next(csv_reader)  # Skip the header row if present
+                for row in csv_reader:
+                    img_name = row[0]
+                    label = int(row[1])
+                    
+                    self.data.append(img_name)
+                    self.labels.append(label)
+            
+            # Save the pre-processed data to disk
+            np.save('{}/x_{}'.format(self.root_dir, self.data_type), np.array(self.data))
+            np.save('{}/y_{}'.format(self.root_dir, self.data_type), np.array(self.labels))
+
 # Define the OCTDataset class
 class OCTDataset(Dataset):
     def __init__(self, datapath, transform=None):
