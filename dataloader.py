@@ -176,7 +176,7 @@ class ISICDatasetTF:
         return dataset
 
 class DatasetSeprateByClass(Dataset):
-    def __init__(self, root_dir, csv_file, data_type, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None, img_extension='.jpeg'):
+    def __init__(self, root_dir, csv_file, data_type, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None):
         self.root_dir = root_dir
         self.csv_file = csv_file
         self.transform = transform
@@ -185,8 +185,10 @@ class DatasetSeprateByClass(Dataset):
         self.labels = []
         self.one_hot_encode = one_hot_encode
         self.num_classes = num_classes
-        self.img_extension = img_extension  # Default image extension
         
+        # Define the mapping from class names to integers
+        self.label_mapping = self._create_label_mapping()
+
         # Load data and labels from CSV file or pre-processed files
         self._load_data()
 
@@ -215,48 +217,52 @@ class DatasetSeprateByClass(Dataset):
             return self.get_item(idx)
     
     def get_item(self, idx):
-        img_name = self.data[idx] + self.img_extension
-        label = self.labels[idx]
+        img_name = self.data[idx]
+        class_name = self.labels[idx]
         
         # Dynamically construct the full path to the image
-        img_path = os.path.join(self.root_dir, str(label), img_name)
+        img_path = os.path.join(self.root_dir, class_name, img_name)
         image = Image.open(img_path).convert("RGB")
         
         # Check if one-hot encoding is needed
         if self.one_hot_encode and self.num_classes is not None:
-            one_hot_label = self._one_hot_encode_label(label)
+            one_hot_label = self._one_hot_encode_label(class_name)
         else:
-            one_hot_label = label
+            one_hot_label = self.label_mapping[class_name]
         
         if self.transform is not None:
             image = self.transform(image)
         
         # Return one-hot encoded label if needed
-        return image, one_hot_label if self.one_hot_encode else label
+        return image, one_hot_label if self.one_hot_encode else self.label_mapping[class_name]
     
     def _one_hot_encode_label(self, label):
         one_hot = np.zeros(self.num_classes)
         one_hot[label] = 1
         return one_hot
+
+    def _create_label_mapping(self):
+        # Create a mapping from class names (strings) to integers
+        classes = [d for d in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, d))]
+        label_mapping = {cls: idx for idx, cls in enumerate(classes)}
+        return label_mapping
         
     def _load_data(self):
-        if os.path.exists(self.root_dir + '/x_{}.npy'.format(self.data_type)):
-            self.data = np.load(self.root_dir + '/x_{}.npy'.format(self.data_type))
-            self.labels = np.load(self.root_dir + '/y_{}.npy'.format(self.data_type))
-        else:
-            with open(self.csv_file, 'r') as file:
-                csv_reader = csv.reader(file)
-                next(csv_reader)  # Skip the header row if present
-                for row in csv_reader:
-                    img_name = row[0]
-                    label = int(row[1])
-                    
-                    self.data.append(img_name)
-                    self.labels.append(label)
-            
-            # Save the pre-processed data to disk
-            np.save('{}/x_{}'.format(self.root_dir, self.data_type), np.array(self.data))
-            np.save('{}/y_{}'.format(self.root_dir, self.data_type), np.array(self.labels))
+        with open(self.csv_file, 'r') as file:
+            csv_reader = csv.reader(file)
+            # Read the image extension from the first row
+            self.img_extension = next(csv_reader)[0]
+            for row in csv_reader:
+                img_name = row[0]
+                class_name = row[1]
+                
+                self.data.append(img_name)
+                self.labels.append(class_name)
+        
+        # Save the pre-processed data to disk
+        np.save('{}/x_{}'.format(self.root_dir, self.data_type), np.array(self.data))
+        np.save('{}/y_{}'.format(self.root_dir, self.data_type), np.array(self.labels))
+
 
 # Define the OCTDataset class
 class OCTDataset(Dataset):

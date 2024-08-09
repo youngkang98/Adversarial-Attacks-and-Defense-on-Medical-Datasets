@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul 17 09:13:13 2024
+Created on Sun Aug 13 13:20:41 2023
 
 @author: lkang
 """
@@ -197,7 +197,8 @@ test_data_path = '../OCT2017/test'
 
 trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
 testfile = 'OCT2017-test.csv'
-adversarialFile = 'OCT2017-train-adv-0.1.csv'
+adversarialFile = 'OCT2017-train.csv'
+noiseFile = 'OCT2017-train-adv-0.1.csv'
 
 resultFolder = 'OCT2017_result/'
 # Load the previously trained model
@@ -208,9 +209,6 @@ image_count = 1773
 # List of numbers of images to use for noise 
 image_counts = [525,473,420,368,315,263,210,158,105,53]
 
-# checkpoint
-# checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
-checkpoint = torch.load('../OCT_Model/Acc97_OCT_Model_epoch50_BS16.pth',map_location ='cpu')
 
 iterations = [25]
 eps = [0.04]
@@ -234,82 +232,97 @@ test_transform = transforms.Compose([
 
 # Dataset for evaluation (excluding the images used for noise generation)
 eval_dataset = DatasetSeprateByClass(test_data_path, testfile, 'test_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-eval_loader = DataLoader(eval_dataset, batch_size=8, shuffle=True)
+eval_loader = DataLoader(eval_dataset, batch_size=32, shuffle=True)
 eval_dataset_length = len(eval_dataset)
 print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
 
-noise_dataset = DatasetSeprateByClass(train_data_path, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-noise_loader = DataLoader(noise_dataset, batch_size=8, shuffle=True)
-noise_length = len(noise_dataset)
-print(f"Number of images in the adv training dataset: {noise_length}")
+advtrain_dataset = DatasetSeprateByClass(train_data_path, adversarialFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+advtrain_loader = DataLoader(advtrain_dataset, batch_size=32, shuffle=True)
+advtrain_length = len(advtrain_dataset)
+print(f"Number of images in the adv training dataset: {advtrain_length}")
+
+
 
 device = 'cuda'
 model = resnet50()
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 model = model.to(device)
-model.load_state_dict(checkpoint['model_state_dict'])
-# model.load_state_dict(checkpoint['netC'])
-model.eval()
+model.train()
 
 
 # Define the loss function and the optimizer
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9, weight_decay=5e-4)
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-# optimizer.load_state_dict(checkpoint['optimizerC'])
 
 # Create the ART classifier
 classifier = PyTorchClassifier(
     model=model,
     loss=criterion,
-    input_shape=(3,256,256),
+    input_shape=(3,224,224),
     optimizer=optimizer,
     nb_classes=num_classes,
     device_type='gpu',
     preprocessing=None
 )
 
-# Universal Perturbation parameters
 mean_inf_train = 0.57  # Modify as needed
 
-#========================
+# adversarial_x, adversarial_y = advtrain_dataset[0:]
+
+adv_trainer = AdversarialTrainerMadryPGD(nb_epochs = 30,
+                                         eps = 4/255,
+                                         eps_step=1 / 255, 
+                                         classifier = classifier,
+                                         batch_size=32)
+
+# adv_trainer.fit(adversarial_x,adversarial_y,nb_epochs=100)
+# Custom fit loop
+for epoch in range(20):  # number of epochs
+    print(f"Epoch {epoch+1}/{20}")
+    for images, labels in advtrain_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+        
+        # Convert labels to numpy arrays if needed
+        labels_np = labels.cpu().numpy()
+
+        # Fit the adversarial trainer on the batch
+        adv_trainer.fit(images.cpu().numpy(), labels_np, nb_epochs=1)
 
 image_list = []
 
 success_rate = 0
 
-# Initialize data structures to hold the split data
-all_images = []
-all_labels = []
+model.eval()
 
-# for images, labels in noise_loader:
-#     for img, label in zip(images, labels):
-#         all_images.append(img)
-#         all_labels.append(label)
+# Evaluation madry_pgd
+madry_classifier = adv_trainer.get_classifier()
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(madry_classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, resultFolder + "confusion_matrix_clean_after_advtrain")
+save_results_to_file(resultFolder + "evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+classificationReportFileName = resultFolder + "classification_report_clean_after_advtrain.txt"
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
 
-# # Initialize class-specific image collections
-# class_images = defaultdict(list)
-# for img, label in zip(all_images, all_labels):
-#     class_images[label.item()].append(img)
-    
-# Initialize class-specific image collections
+save_path = 'advtrain_model'
+# Save the model and optimizer state
+checkpoint = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+}
+
+os.makedirs(save_path, exist_ok=True)
+torch.save(checkpoint, os.path.join(save_path, 'AdvTrain_OCT2017_epoch100_BS16.pth'))
+
+noise_dataset = DatasetSeprateByClass(train_data_path, noiseFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+noise_loader = DataLoader(advtrain_dataset, batch_size=8, shuffle=True)
+noise_length = len(advtrain_dataset)
+print(f"Number of images in the adv noise dataset: {noise_length}")
+
 class_images = defaultdict(list)
 for images, labels in noise_loader:
     for img, label in zip(images, labels):
         class_images[label.item()].append(img)
-
-model.eval()
-
-# # Evaluation madry_pgd
-# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-# print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-# plot_confusion_matrix(true_labels, pred_labels, f"{resultFolder}confusion_matrix_clean_after_advtrain")
-# save_results_to_file(f"{resultFolder}evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
-# classificationReportFileName = f'{resultFolder}classification_report_clean_after_advtrain.txt'
-# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
-val_loss_no_noise = 0
-val_acc_no_noise = 97.1
-
 
 # Loop through the different numbers of images
 for current_attack_eps in attack_eps:
@@ -406,11 +419,9 @@ for current_attack_eps in attack_eps:
             classificationReportFileName = f'{resultFolder}classification_report_{adv_image_count}_att{current_attack_eps}_eps{current_eps}.txt'
             generate_classification_report(true_labels, pred_labels, classificationReportFileName)
 
-
 end_time = time.time()
 
-# Calculate the time taken
-time_taken = end_time - start_time
+# Calculate the elapsed time
+elapsed_time = end_time - start_time
 
-# Print the time taken
-print(f"Time taken: {time_taken} seconds")
+print(f"Time taken to run the code: {elapsed_time} seconds")

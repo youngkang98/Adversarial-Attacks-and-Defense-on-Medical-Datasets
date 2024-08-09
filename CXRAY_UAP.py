@@ -192,14 +192,14 @@ def generate_classification_report(true_labels, pred_labels,fileName):
 # Parameters need to change
 
 datapath = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
-train_data_path = '../OCT2017/train'
-test_data_path = '../OCT2017/test'
+train_data_path = '../chest_xray/train'
+test_data_path = '../chest_xray/test'
 
 trainfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_train.csv'
-testfile = 'OCT2017-test.csv'
-adversarialFile = 'OCT2017-train-adv-0.1.csv'
+testfile = 'CXRAY-test.csv'
+adversarialFile = 'CXRAY-train.csv'
 
-resultFolder = 'OCT2017_result/'
+resultFolder = 'CXRAY_result/'
 # Load the previously trained model
 num_classes = 4
 # Number of images to use for noise generation
@@ -210,7 +210,7 @@ image_counts = [525,473,420,368,315,263,210,158,105,53]
 
 # checkpoint
 # checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
-checkpoint = torch.load('../OCT_Model/Acc97_OCT_Model_epoch50_BS16.pth',map_location ='cpu')
+checkpoint = torch.load('../ChestX-ray_model/ACC75_chest_xray_epoch50_BS16.pth',map_location ='cpu')
 
 iterations = [25]
 eps = [0.04]
@@ -218,10 +218,10 @@ attack_eps = [0.0024]
 remap = False
 targeted_attack = False
 # Specify the target class as an integer (e.g., 2 for "Basal cell carcinoma")
-target_class = 2
+target_class = 4
 # Define the different percentages for adversarial training
 # adv_percentages = [0.1, 0.09, 0.08, 0.07,0.06,0.05,0.04,0.03,0.02,0.01]  # Adjust these values as needed
-adv_percentages = [1]
+adv_percentages = [0.1]
 
 # ----------------------------------------------------------
 
@@ -292,25 +292,26 @@ all_labels = []
 # for img, label in zip(all_images, all_labels):
 #     class_images[label.item()].append(img)
     
+
+
+model.eval()
+
+# Evaluation madry_pgd
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, f"{resultFolder}confusion_matrix_clean_after_advtrain")
+save_results_to_file(f"{resultFolder}evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+classificationReportFileName = f'{resultFolder}classification_report_clean_after_advtrain.txt'
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+# val_loss_no_noise = 0
+# val_acc_no_noise = 97.1
+
 # Initialize class-specific image collections
 class_images = defaultdict(list)
 for images, labels in noise_loader:
     for img, label in zip(images, labels):
         class_images[label.item()].append(img)
-
-model.eval()
-
-# # Evaluation madry_pgd
-# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-# print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-# plot_confusion_matrix(true_labels, pred_labels, f"{resultFolder}confusion_matrix_clean_after_advtrain")
-# save_results_to_file(f"{resultFolder}evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
-# classificationReportFileName = f'{resultFolder}classification_report_clean_after_advtrain.txt'
-# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
-val_loss_no_noise = 0
-val_acc_no_noise = 97.1
-
-
+        
 # Loop through the different numbers of images
 for current_attack_eps in attack_eps:
     for current_eps in eps:
