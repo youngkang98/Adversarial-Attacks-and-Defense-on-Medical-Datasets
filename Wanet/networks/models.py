@@ -66,7 +66,7 @@ class Denormalizer:
             denormalizer = Denormalize(opt, [0.4914, 0.4822, 0.4465], [0.247, 0.243, 0.261])
         elif opt.dataset == "mnist":
             denormalizer = Denormalize(opt, [0.5], [0.5])
-        elif opt.dataset == "gtsrb" or opt.dataset == "celeba" or opt.dataset == "ISIC2019" or opt.dataset == "Echo" or opt.dataset == "COVID-19":
+        elif opt.dataset == "gtsrb" or opt.dataset == "celeba" or opt.dataset == "ISIC2019" or opt.dataset == "Echo" or opt.dataset == "COVID-19" or opt.dataset == "OCT" or opt.dataset == "CXRAY":
             denormalizer = None
         else:
             raise Exception("Invalid dataset")

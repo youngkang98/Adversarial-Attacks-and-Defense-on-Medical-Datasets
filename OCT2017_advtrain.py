@@ -242,6 +242,11 @@ advtrain_length = len(advtrain_dataset)
 print(f"Number of images in the adv training dataset: {advtrain_length}")
 
 
+noise_dataset = DatasetSeprateByClass(train_data_path, noiseFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
+noise_loader = DataLoader(advtrain_dataset, batch_size=8, shuffle=True)
+noise_length = len(advtrain_dataset)
+print(f"Number of images in the adv noise dataset: {noise_length}")
+
 
 device = 'cuda'
 model = resnet50()
@@ -313,11 +318,6 @@ checkpoint = {
 
 os.makedirs(save_path, exist_ok=True)
 torch.save(checkpoint, os.path.join(save_path, 'AdvTrain_OCT2017_epoch100_BS16.pth'))
-
-noise_dataset = DatasetSeprateByClass(train_data_path, noiseFile, 'train_data', transform=test_transform, one_hot_encode= False, num_classes=num_classes)
-noise_loader = DataLoader(advtrain_dataset, batch_size=8, shuffle=True)
-noise_length = len(advtrain_dataset)
-print(f"Number of images in the adv noise dataset: {noise_length}")
 
 class_images = defaultdict(list)
 for images, labels in noise_loader:

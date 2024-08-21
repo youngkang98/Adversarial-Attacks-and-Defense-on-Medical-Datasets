@@ -156,7 +156,7 @@ testfile = 'C:/Users/lkang/Documents/New UAP/ISIC2019_test_012.csv'
 train_data_path = '../chest_xray/train'
 test_data_path = '../chest_xray/test'
 
-num_classes = 4
+num_classes = 2
 
 clean_checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc81_Epoch100_BS16_3class/ISIC2019_morph.pth.tar',map_location ='cpu')
 checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
@@ -212,17 +212,7 @@ model = model.to(device)
 model.train()
 # Define the loss function and the optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=5e-4)
-
-# # Create the ART classifier
-# classifier = PyTorchClassifier(
-#     model=model,
-#     loss=criterion,
-#     input_shape=(3, 256, 256),
-#     optimizer=optimizer,
-#     nb_classes=num_classes,
-#     device_type='gpu'
-# )
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=5e-4)
 
 # Training function
 def train(model, train_loader, criterion, optimizer, device, epochs):
@@ -247,6 +237,9 @@ def evaluate(model, eval_loader, criterion, device):
     running_loss = 0.0
     correct = 0
     total = 0
+    all_labels = []
+    all_preds = []
+    
     with torch.no_grad():
         for inputs, labels in eval_loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -258,29 +251,25 @@ def evaluate(model, eval_loader, criterion, device):
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+
+            # Collecting all labels and predictions for the confusion matrix
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(predicted.cpu().numpy())
+
     accuracy = 100 * correct / total
-    return running_loss / len(eval_loader), accuracy
+    return running_loss / len(eval_loader), accuracy, all_labels, all_preds
+
 
 # Training loop
-num_epochs = 50
+num_epochs = 100
 train(model, train_loader, criterion, optimizer, device, num_epochs)
 
 # Evaluate the model
-eval_loss, eval_accuracy = evaluate(model, eval_loader, criterion, device)
+eval_loss, eval_accuracy, all_labels, all_preds = evaluate(model, eval_loader, criterion, device)
 print(f"Eval Loss: {eval_loss:.4f}, Eval Accuracy: {eval_accuracy:.2f}%")
-
+plot_confusion_matrix(all_labels,all_preds,"CXRAY_result/conf_train")
 
 save_path = 'model'
-# # Save the classifier, model, and optimizer state
-# checkpoint = {
-#     'model_state_dict': model.state_dict(),
-#     'optimizer_state_dict': optimizer.state_dict(),
-#     'classifier': classifier,
-# }
-
-# os.makedirs(save_path, exist_ok=True)
-# torch.save(checkpoint, os.path.join(save_path, 'OCT_Model_epoch50_BS16.pth'))
-
 # Save the model and optimizer state
 checkpoint = {
     'model_state_dict': model.state_dict(),
@@ -288,103 +277,7 @@ checkpoint = {
 }
 
 os.makedirs(save_path, exist_ok=True)
-torch.save(checkpoint, os.path.join(save_path, 'chest_xray_epoch50_BS16.pth'))
-# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-# print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-
-# clean_x, clean_y = eval_dataset[0:]
-
-
-#===========================================================================
-
-# fgsm = FastGradientMethod(classifier, eps=1/255, eps_step=1/255, num_random_init=0)
-# adv_x_fgsm = fgsm.generate(clean_x)
-
-# # adversarial_dataset = AdversarialDataset(adv_x_fgsm, clean_y)
-# # adversarial_loader = DataLoader(adversarial_dataset, batch_size=32, shuffle=False)
-
-# # val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(clean_classifier, eval_loader, criterion, device,remap=remap)
-# # print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-
-# # Move the adversarial data to the appropriate device
-# adv_x_fgsm = torch.tensor(adv_x_fgsm).to(device)
-# clean_y = torch.tensor(clean_y).to(device)
-
-# # Use the ART classifier to predict
-# predictions = classifier.predict(adv_x_fgsm.cpu().numpy())
-
-# # Convert predictions to class labels
-# predicted_labels = np.argmax(predictions, axis=1)
-
-# # Calculate accuracy
-# correct = np.sum(predicted_labels == clean_y.cpu().numpy())
-# total = clean_y.size(0)
-# accuracy = correct / total
-
-# print(f'Accuracy on FGSM adversarial examples: {accuracy * 100:.2f}%')
-# plot_confusion_matrix(clean_y.cpu().numpy(), predicted_labels)
-
-#=======================================================================
-
-# deep_fool = DeepFool(clean_classifier, epsilon=0.004, max_iter=10)
-# adv_x_df = deep_fool.generate(clean_x)
-
-# # Move the adversarial data to the appropriate device
-# adv_x_df = torch.tensor(adv_x_df).to(device)
-# clean_y = torch.tensor(clean_y).to(device)
-
-# # Use the ART classifier to predict
-# predictions = classifier.predict(adv_x_df.cpu().numpy())
-
-# # Convert predictions to class labels
-# predicted_labels = np.argmax(predictions, axis=1)
-
-# # Calculate accuracy
-# correct = np.sum(predicted_labels == clean_y.cpu().numpy())
-# total = clean_y.size(0)
-# accuracy = correct / total
-
-# print(f'Accuracy on Deep Fool adversarial examples: {accuracy * 100:.2f}%')
-# plot_confusion_matrix(clean_y.cpu().numpy(), predicted_labels)
-
-
-#===================================================================
-
-# uap = UniversalPerturbation(
-#     classifier,
-#     attacker='fgsm',
-#     attacker_params={'targeted': False, 'eps': 1/255}, #eps = 0.001,0.0024
-#     max_iter=15,
-#     eps= 1/255,#0.04
-#     norm=np.inf
-# )
-# adv_x_uap = uap.generate(clean_x)
-
-# # adversarial_dataset = AdversarialDataset(adv_x_fgsm, clean_y)
-# # adversarial_loader = DataLoader(adversarial_dataset, batch_size=32, shuffle=False)
-
-# # val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(clean_classifier, eval_loader, criterion, device,remap=remap)
-# # print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-
-# # Move the adversarial data to the appropriate device
-# adv_x_uap = torch.tensor(adv_x_uap).to(device)
-# clean_y = torch.tensor(clean_y).to(device)
-
-# # Use the ART classifier to predict
-# predictions = classifier.predict(adv_x_uap.cpu().numpy())
-
-# # Convert predictions to class labels
-# predicted_labels = np.argmax(predictions, axis=1)
-
-# # Calculate accuracy
-# correct = np.sum(predicted_labels == clean_y.cpu().numpy())
-# total = clean_y.size(0)
-# accuracy = correct / total
-
-# print(f'Accuracy on FGSM adversarial examples: {accuracy * 100:.2f}%')
-# plot_confusion_matrix(clean_y.cpu().numpy(), predicted_labels)
-
-#====================================================================
+torch.save(checkpoint, os.path.join(save_path, f"chest_xray_epoch{num_epochs}_BS16.pth"))
 # End the timer
 end_time = time.time()
 

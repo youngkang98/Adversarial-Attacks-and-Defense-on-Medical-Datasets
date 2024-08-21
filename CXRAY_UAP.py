@@ -201,7 +201,7 @@ adversarialFile = 'CXRAY-train.csv'
 
 resultFolder = 'CXRAY_result/'
 # Load the previously trained model
-num_classes = 4
+num_classes = 2
 # Number of images to use for noise generation
 image_count = 1773
 
@@ -210,7 +210,7 @@ image_counts = [525,473,420,368,315,263,210,158,105,53]
 
 # checkpoint
 # checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
-checkpoint = torch.load('../ChestX-ray_model/ACC75_chest_xray_epoch50_BS16.pth',map_location ='cpu')
+checkpoint = torch.load('../ChestX-ray_model/chest_xray_epoch100_BS16.pth',map_location ='cpu')
 
 iterations = [25]
 eps = [0.04]

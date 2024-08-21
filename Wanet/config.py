@@ -48,20 +48,20 @@ def get_arguments():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--continue_training", action="store_true")
 
-    parser.add_argument("--dataset", type=str, default="COVID-19")
+    parser.add_argument("--dataset", type=str, default="CXRAY")
     parser.add_argument("--attack_mode", type=str, default="all2all")
 
     parser.add_argument("--bs", type=int, default=32)
     parser.add_argument("--lr_C", type=float, default=1e-3)
     parser.add_argument("--schedulerC_milestones", type=list, default=[50, 100, 150, 200])
     parser.add_argument("--schedulerC_lambda", type=float, default=0.05)
-    parser.add_argument("--n_iters", type=int, default=50)
+    parser.add_argument("--n_iters", type=int, default=20)
     parser.add_argument("--num_workers", type=float, default=2)
 
     parser.add_argument("--target_label", type=int, default=0)
-    parser.add_argument("--pc", type=float, default=0) #pc =0.1 use to train model and chang to 0
-    parser.add_argument("--maxBD", type=float, default=177)
-    parser.add_argument("--cross_ratio", type=float, default=2)  # rho_a = pc, rho_n = pc * cross_ratio
+    parser.add_argument("--pc", type=float, default=0.1) #pc =0.1 use to train model and chang to 0
+    parser.add_argument("--maxBD", type=float, default=8348)
+    parser.add_argument("--cross_ratio", type=float, default=0)  # rho_a = pc, rho_n = pc * cross_ratio
 
     parser.add_argument("--random_rotation", type=int, default=20)
     parser.add_argument("--random_crop", type=int, default=5)

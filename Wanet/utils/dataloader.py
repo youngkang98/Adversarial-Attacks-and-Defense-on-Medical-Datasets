@@ -14,6 +14,8 @@ from torchvision.transforms.functional import to_tensor
 from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 
+from torch.utils.data import Dataset
+
 
 class ToNumpy:
     def __call__(self, x):
@@ -51,7 +53,7 @@ def get_transform(opt, train=True, pretensor_transform=False):
         transforms_list.append(transforms.Normalize([0.4914, 0.4822, 0.4465], [0.247, 0.243, 0.261]))
     elif opt.dataset == "mnist":
         transforms_list.append(transforms.Normalize([0.5], [0.5]))
-    elif opt.dataset == "gtsrb" or opt.dataset == "celeba" or opt.dataset=="ISIC2019"or opt.dataset=="Echo" or opt.dataset == "COVID-19":
+    elif opt.dataset == "gtsrb" or opt.dataset == "celeba" or opt.dataset=="ISIC2019"or opt.dataset=="Echo" or opt.dataset == "COVID-19" or opt.dataset == "OCT" or opt.dataset == "CXRAY":
         pass
     else:
         raise Exception("Invalid Dataset")
@@ -214,7 +216,7 @@ class CSVDataset(data.Dataset):
 
 
 
-def get_dataloader(opt, train=True,set_ISIC2019='Train', pretensor_transform=False):
+def get_dataloader(opt, train=True,trainOrTestData='Train', pretensor_transform=False):
     transform = get_transform(opt, train, pretensor_transform)
     if opt.dataset == "gtsrb":
         dataset = GTSRB(opt, train, transform)
@@ -231,23 +233,23 @@ def get_dataloader(opt, train=True,set_ISIC2019='Train', pretensor_transform=Fal
     elif opt.dataset=='ISIC2019':
         csv_path = 'C:/Users/lkang/Documents/txt/ISIC2019_grandtruethlabels.csv'
         root_path = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
-        if set_ISIC2019 == 'Train':
+        if trainOrTestData == 'Train':
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                                transform=transform, add_extension='.jpg',
                                # split='C:/Users/lkang/Documents/txt/train'+str(opt.split_idx)+'.txt')
                                 split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_train_012.txt')
                                 # split='/media/userdisk1/yf/ISIC2019/txt/train'+str(opt.split_idx)+'.txt')
-        elif set_ISIC2019 == 'Val':
+        elif trainOrTestData == 'Val':
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                                  transform=transform, add_extension='.jpg',
                                  split='C:/Users/lkang/Documents/txt/validation' + str(opt.split_idx) + '.txt')
-        elif set_ISIC2019 == 'Test':
+        elif trainOrTestData == 'Test':
             dataset=CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                               transform=transform, add_extension='.jpg',
                               # split='C:/Users/lkang/Documents/txt/test' + str(opt.split_idx) + '.txt')
                               split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_test_012.txt')
         else:
-            print ('Wrong set_ISIC2019',set_ISIC2019)
+            print ('Wrong set_ISIC2019',trainOrTestData)
     elif opt.dataset=='Echo':
         train_dir = "C:/Users/lkang/Documents/Echocardiogram/Echocardiogram/data_split/train"
         img_size = (128, 128)
@@ -256,15 +258,33 @@ def get_dataloader(opt, train=True,set_ISIC2019='Train', pretensor_transform=Fal
         dataLoaded = train_datagen.flow_from_directory(train_dir, target_size=img_size, batch_size=batch_size, class_mode='categorical', color_mode='grayscale')
         dataset = ImageFolderDataset(dataLoaded)
     elif opt.dataset=='COVID-19':
-        root_dir = 'C:/Users/lkang/Documents/COVID-Net/'+set_ISIC2019
+        root_dir = 'C:/Users/lkang/Documents/COVID-Net/'+trainOrTestData
         test_file = 'test_COVIDx8A.txt'
         train_file = 'train_COVIDx8A.txt'
-        if set_ISIC2019 == 'Train':
+        if trainOrTestData == 'Train':
             dataset = COVID19Dataset(txt_file=train_file, root_dir=root_dir, transform=transform)
-        elif set_ISIC2019 == 'Test':
+        elif trainOrTestData == 'Test':
             dataset=COVID19Dataset(txt_file=test_file, root_dir=root_dir, transform=transform)
         else:
-            print ('Wrong set_ISIC2019',set_ISIC2019)
+            print ('Wrong set_ISIC2019',trainOrTestData)
+    elif opt.dataset == 'OCT':
+        train_data_path = 'C:/Users/lkang/Documents/OCT2017/train'
+        test_data_path = 'C:/Users/lkang/Documents/OCT2017/test'
+        testfile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/OCT2017-test.csv'
+        trainFile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/OCT2017-train.csv'
+        if trainOrTestData == 'Train':
+            dataset = DatasetSeprateByClass(train_data_path, trainFile, 'train_data', transform=transform, one_hot_encode= False, num_classes=4)
+        elif trainOrTestData == 'Test':
+            dataset = DatasetSeprateByClass(test_data_path, testfile, 'test_data', transform=transform, one_hot_encode= False, num_classes=4)
+    elif opt.dataset == 'CXRAY':
+        train_data_path = 'C:/Users/lkang/Documents/chest_xray/train'
+        test_data_path = 'C:/Users/lkang/Documents/chest_xray/test'
+        testfile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/CXRAY-test.csv'
+        trainFile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/CXRAY-train.csv'
+        if trainOrTestData == 'Train':
+            dataset = DatasetSeprateByClass(train_data_path, trainFile, 'train_data', transform=transform, one_hot_encode= False, num_classes=2)
+        elif trainOrTestData == 'Test':
+            dataset = DatasetSeprateByClass(test_data_path, testfile, 'test_data', transform=transform, one_hot_encode= False, num_classes=2)
     else:
         raise Exception("Invalid dataset")
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.bs, num_workers=opt.num_workers, shuffle=True)
@@ -341,6 +361,94 @@ def get_dataset(opt, train=True):
     else:
         raise Exception("Invalid dataset")
     return dataset
+
+class DatasetSeprateByClass(Dataset):
+    def __init__(self, root_dir, csv_file, data_type, transform=None, exclude_first_n=None, one_hot_encode=False, num_classes=None):
+        self.root_dir = root_dir
+        self.csv_file = csv_file
+        self.transform = transform
+        self.data_type = data_type
+        self.data = []
+        self.labels = []
+        self.one_hot_encode = one_hot_encode
+        self.num_classes = num_classes
+        
+        # Define the mapping from class names to integers
+        self.label_mapping = self._create_label_mapping()
+
+        # Load data and labels from CSV file or pre-processed files
+        self._load_data()
+
+        # If exclude_first_n is provided, exclude the first n images
+        if exclude_first_n is not None:
+            self.data = self.data[exclude_first_n:]
+            self.labels = self.labels[exclude_first_n:]
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        # Check if idx is a slice
+        if isinstance(idx, slice):
+            images, labels = [], []
+            for i in range(*idx.indices(len(self))):
+                img, label = self.get_item(i)
+                images.append(img)
+                labels.append(label)
+            
+            # Convert lists to numpy arrays
+            images_np = np.array([np.array(img) for img in images])  # Ensure images are numpy arrays
+            labels_np = np.array(labels)
+            return images_np, labels_np
+        else:
+            return self.get_item(idx)
+    
+    def get_item(self, idx):
+        img_name = self.data[idx]
+        class_name = self.labels[idx]
+        
+        # Dynamically construct the full path to the image
+        img_path = os.path.join(self.root_dir, class_name, img_name)
+        image = Image.open(img_path).convert("RGB")
+        
+        # Check if one-hot encoding is needed
+        if self.one_hot_encode and self.num_classes is not None:
+            one_hot_label = self._one_hot_encode_label(class_name)
+        else:
+            one_hot_label = self.label_mapping[class_name]
+        
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        # Return one-hot encoded label if needed
+        return image, one_hot_label if self.one_hot_encode else self.label_mapping[class_name]
+    
+    def _one_hot_encode_label(self, label):
+        one_hot = np.zeros(self.num_classes)
+        one_hot[label] = 1
+        return one_hot
+
+    def _create_label_mapping(self):
+        # Create a mapping from class names (strings) to integers
+        classes = [d for d in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, d))]
+        label_mapping = {cls: idx for idx, cls in enumerate(classes)}
+        return label_mapping
+        
+    def _load_data(self):
+        with open(self.csv_file, 'r') as file:
+            csv_reader = csv.reader(file)
+            # Read the image extension from the first row
+            self.img_extension = next(csv_reader)[0]
+            for row in csv_reader:
+                img_name = row[0]
+                class_name = row[1]
+                
+                self.data.append(img_name)
+                self.labels.append(class_name)
+        
+        # Save the pre-processed data to disk
+        np.save('{}/x_{}'.format(self.root_dir, self.data_type), np.array(self.data))
+        np.save('{}/y_{}'.format(self.root_dir, self.data_type), np.array(self.labels))
 
 
 def main():

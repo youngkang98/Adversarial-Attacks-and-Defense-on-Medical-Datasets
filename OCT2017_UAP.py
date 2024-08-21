@@ -202,21 +202,15 @@ adversarialFile = 'OCT2017-train-adv-0.1.csv'
 resultFolder = 'OCT2017_result/'
 # Load the previously trained model
 num_classes = 4
-# Number of images to use for noise generation
-image_count = 1773
-
-# List of numbers of images to use for noise 
-image_counts = [525,473,420,368,315,263,210,158,105,53]
-
 # checkpoint
 # checkpoint = torch.load('C:/Users/lkang/Documents/ISIC_Model/Acc70_advtrain_epoch100_BS32_3class/checkpoint.pth',map_location ='cpu')
-checkpoint = torch.load('../OCT_Model/Acc97_OCT_Model_epoch50_BS16.pth',map_location ='cpu')
+checkpoint = torch.load('../OCT_Model/AdvTrain_OCT2017_epoch20_BS32.pth',map_location ='cpu')
 
 iterations = [25]
 eps = [0.04]
 attack_eps = [0.0024]
 remap = False
-targeted_attack = False
+targeted_attack = True
 # Specify the target class as an integer (e.g., 2 for "Basal cell carcinoma")
 target_class = 2
 # Define the different percentages for adversarial training
@@ -301,14 +295,14 @@ for images, labels in noise_loader:
 model.eval()
 
 # # Evaluation madry_pgd
-# val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
-# print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
-# plot_confusion_matrix(true_labels, pred_labels, f"{resultFolder}confusion_matrix_clean_after_advtrain")
-# save_results_to_file(f"{resultFolder}evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
-# classificationReportFileName = f'{resultFolder}classification_report_clean_after_advtrain.txt'
-# generate_classification_report(true_labels,pred_labels,classificationReportFileName)
-val_loss_no_noise = 0
-val_acc_no_noise = 97.1
+val_loss_no_noise, val_acc_no_noise, true_labels, pred_labels = evaluate(classifier, eval_loader, criterion, device,remap=remap)
+print(f"Without Noise after adv train - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%")
+plot_confusion_matrix(true_labels, pred_labels, f"{resultFolder}confusion_matrix_clean_after_advtrain")
+save_results_to_file(f"{resultFolder}evaluation_result_after_adv_train.txt",val_loss_no_noise,val_acc_no_noise, 0, 0, 0,targeted=False)
+classificationReportFileName = f'{resultFolder}classification_report_clean_after_advtrain.txt'
+generate_classification_report(true_labels,pred_labels,classificationReportFileName)
+# val_loss_no_noise = 0
+# val_acc_no_noise = 97.1
 
 
 # Loop through the different numbers of images
