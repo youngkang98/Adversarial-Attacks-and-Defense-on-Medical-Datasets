@@ -16,6 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torch.utils.data import Dataset
 
+import tensorflow as tf
+# import tensorflow_addons as tfa
+
 
 class ToNumpy:
     def __call__(self, x):
@@ -73,6 +76,21 @@ class PostTensorTransform(torch.nn.Module):
     def forward(self, x):
         for module in self.children():
             x = module(x)
+        return x
+    
+class PostTensorTransformTF:
+    def __init__(self, opt):
+        self.input_height = opt.input_height
+        self.input_width = opt.input_width
+        self.random_crop = tf.keras.layers.RandomCrop(opt.input_height, opt.input_width)
+        self.random_rotation = tf.keras.layers.RandomRotation(opt.random_rotation / 180.0)  # Degrees to radians
+        self.random_horizontal_flip = opt.dataset == "cifar10"
+
+    def __call__(self, x):
+        x = self.random_crop(x)
+        x = self.random_rotation(x)
+        if self.random_horizontal_flip:
+            x = tf.image.random_flip_left_right(x)
         return x
 
 
@@ -233,11 +251,14 @@ def get_dataloader(opt, train=True,trainOrTestData='Train', pretensor_transform=
     elif opt.dataset=='ISIC2019':
         csv_path = 'C:/Users/lkang/Documents/txt/ISIC2019_grandtruethlabels.csv'
         root_path = 'C:/Users/lkang/Documents/ISIC_2019_Training_Input/'
+        test_root_path = 'C:/Users/lkang/Documents/ISIC_2019_Test_Input/'
         if trainOrTestData == 'Train':
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                                transform=transform, add_extension='.jpg',
+                               # split=None)
+                               split='C:/Users/lkang/Documents/txt/train0.txt')
                                # split='C:/Users/lkang/Documents/txt/train'+str(opt.split_idx)+'.txt')
-                                split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_train_012.txt')
+                                # split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_train_012.txt')
                                 # split='/media/userdisk1/yf/ISIC2019/txt/train'+str(opt.split_idx)+'.txt')
         elif trainOrTestData == 'Val':
             dataset = CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
@@ -246,8 +267,10 @@ def get_dataloader(opt, train=True,trainOrTestData='Train', pretensor_transform=
         elif trainOrTestData == 'Test':
             dataset=CSVDataset(root=root_path, csv_file=csv_path, image_field='image', target_field='label',
                               transform=transform, add_extension='.jpg',
+                              # split=None)
+                              split='C:/Users/lkang/Documents/txt/test0.txt')
                               # split='C:/Users/lkang/Documents/txt/test' + str(opt.split_idx) + '.txt')
-                              split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_test_012.txt')
+                              # split='C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/ISIC2019_test_012.txt')
         else:
             print ('Wrong set_ISIC2019',trainOrTestData)
     elif opt.dataset=='Echo':
@@ -268,10 +291,10 @@ def get_dataloader(opt, train=True,trainOrTestData='Train', pretensor_transform=
         else:
             print ('Wrong set_ISIC2019',trainOrTestData)
     elif opt.dataset == 'OCT':
-        train_data_path = 'C:/Users/lkang/Documents/OCT2017/train'
-        test_data_path = 'C:/Users/lkang/Documents/OCT2017/test'
-        testfile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/OCT2017-test.csv'
-        trainFile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/OCT2017-train.csv'
+        train_data_path = 'data/OCT/OCT2017_/train'
+        test_data_path = 'data/OCT/OCT2017_/test'
+        testfile = 'data/OCT2017-test.csv'
+        trainFile = 'data/OCT2017-train.csv'
         if trainOrTestData == 'Train':
             dataset = DatasetSeprateByClass(train_data_path, trainFile, 'train_data', transform=transform, one_hot_encode= False, num_classes=4)
         elif trainOrTestData == 'Test':
@@ -279,8 +302,8 @@ def get_dataloader(opt, train=True,trainOrTestData='Train', pretensor_transform=
     elif opt.dataset == 'CXRAY':
         train_data_path = 'C:/Users/lkang/Documents/chest_xray/train'
         test_data_path = 'C:/Users/lkang/Documents/chest_xray/test'
-        testfile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/CXRAY-test.csv'
-        trainFile = 'C:/Users/lkang/Documents/Adversarial-Attack-and-Defense/CXRAY-train.csv'
+        testfile = 'C:/Users/lkang/Documents/Github/Adversarial-Attack-and-Defense/CXRAY-test.csv'
+        trainFile = 'C:/Users/lkang/Documents/Github/Adversarial-Attack-and-Defense/CXRAY-train.csv'
         if trainOrTestData == 'Train':
             dataset = DatasetSeprateByClass(train_data_path, trainFile, 'train_data', transform=transform, one_hot_encode= False, num_classes=2)
         elif trainOrTestData == 'Test':

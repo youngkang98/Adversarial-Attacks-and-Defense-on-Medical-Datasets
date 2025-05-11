@@ -163,25 +163,25 @@ def train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_
         if not os.path.exists(opt.temps):
             os.makedirs(opt.temps)
         
-        if attack:
+        # if attack:
             # for image in inputs_bd:
             #     imageName = "backdoor_image_" + str(numOfImage) + ".png"
             #     path = os.path.join(opt.temps, imageName)
             #     torchvision.utils.save_image(image, path, normalize=True)
             #     numOfImage += 1;
-            for i in range(num_bd):
-                clean_image = inputs[i].cpu()
-                noise = (inputs_bd[i] - inputs[i]).cpu()  # Calculate noise
-                noisy_image = inputs_bd[i].cpu()
+            # for i in range(num_bd):
+            #     clean_image = inputs[i].cpu()
+            #     noise = (inputs_bd[i] - inputs[i]).cpu()  # Calculate noise
+            #     noisy_image = inputs_bd[i].cpu()
             
-                # Concatenate images: left=clean_image, middle=noise, right=noisy_image
-                concatenated_image = torch.cat([clean_image, noise, noisy_image], dim=2)
+            #     # Concatenate images: left=clean_image, middle=noise, right=noisy_image
+            #     concatenated_image = torch.cat([clean_image, noise, noisy_image], dim=2)
             
-                # Save the concatenated image
-                imageName = "comparison_image_" + str(numOfImage) + ".png"
-                path = os.path.join(opt.temps, imageName)
-                torchvision.utils.save_image(concatenated_image, path, normalize=True)
-                numOfImage += 1
+            #     # Save the concatenated image
+            #     imageName = "comparison_image_" + str(numOfImage) + ".png"
+            #     path = os.path.join(opt.temps, imageName)
+            #     torchvision.utils.save_image(concatenated_image, path, normalize=True)
+            #     numOfImage += 1
         # Save image for debugging
         # if not batch_idx % 50:
         #     if not os.path.exists(opt.temps):
@@ -350,7 +350,7 @@ def main():
     elif opt.dataset == "celeba":
         opt.num_classes = 8
     elif opt.dataset == 'ISIC2019':
-        opt.num_classes = 3
+        opt.num_classes = 8
     elif opt.dataset == 'Echo':
         opt.num_classes = 3
     elif opt.dataset == 'COVID-19':

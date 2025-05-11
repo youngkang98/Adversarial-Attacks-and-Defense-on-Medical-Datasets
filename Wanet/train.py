@@ -170,12 +170,12 @@ def train(netC, optimizerC, schedulerC, train_dl, noise_grid, identity_grid, tf_
         if not os.path.exists(opt.temps):
             os.makedirs(opt.temps)
         
-        if attack:
-            for image in inputs_bd:
-                imageName = "backdoor_image_" + str(numOfImage) + ".png"
-                path = os.path.join(opt.temps, imageName)
-                torchvision.utils.save_image(image, path, normalize=True)
-                numOfImage += 1;
+        # if attack:
+        #     for image in inputs_bd:
+        #         imageName = "backdoor_image_" + str(numOfImage) + ".png"
+        #         path = os.path.join(opt.temps, imageName)
+        #         torchvision.utils.save_image(image, path, normalize=True)
+        #         numOfImage += 1;
         # Save image for debugging
         # if not batch_idx % 50:
         #     if not os.path.exists(opt.temps):
@@ -293,43 +293,46 @@ def eval(
 
     # Save checkpoint
     # if acc_clean > best_clean_acc or (acc_clean > best_clean_acc - 0.1 and acc_bd > best_bd_acc):
+    best_bd = False
     print(" Saving...")
     best_clean_acc = acc_clean
-    if attack:
+    if attack and acc_bd >= best_bd_acc:
         best_bd_acc = acc_bd
+        print(f"BD Accuracy {acc_bd} replacing {best_bd_acc} of the model!")
     if attack and opt.cross_ratio:
         best_cross_acc = acc_cross
     else:
         best_cross_acc = torch.tensor([0])
-    state_dict = {
-        "netC": netC.state_dict(),
-        "schedulerC": schedulerC.state_dict(),
-        "optimizerC": optimizerC.state_dict(),
-        "best_clean_acc": best_clean_acc,
-        "best_bd_acc": best_bd_acc,
-        "best_cross_acc": best_cross_acc,
-        "epoch_current": epoch,
-        "identity_grid": identity_grid,
-        "noise_grid": noise_grid,
-    }
-    torch.save(state_dict, opt.ckpt_path)
-    resultPath = "results"+str(epoch)+".txt"
-    if attack:
-        with open(os.path.join(opt.ckpt_folder, resultPath), "w+") as f:
-            results_dict = {
-                "clean_acc": best_clean_acc.item(),
-                "bd_acc": best_bd_acc.item(),
-                "cross_acc": best_cross_acc.item(),
-                "epoch": str(epoch)
-            }
-            json.dump(results_dict, f, indent=2)
-    else:
-        with open(os.path.join(opt.ckpt_folder, resultPath), "w+") as f:
-            results_dict = {
-                "clean_acc": best_clean_acc.item(),
-                "epoch": str(epoch)
-            }
-            json.dump(results_dict, f, indent=2)
+    if best_bd:
+        state_dict = {
+            "netC": netC.state_dict(),
+            "schedulerC": schedulerC.state_dict(),
+            "optimizerC": optimizerC.state_dict(),
+            "best_clean_acc": best_clean_acc,
+            "best_bd_acc": best_bd_acc,
+            "best_cross_acc": best_cross_acc,
+            "epoch_current": epoch,
+            "identity_grid": identity_grid,
+            "noise_grid": noise_grid,
+        }
+        torch.save(state_dict, opt.ckpt_path)
+        resultPath = "results"+str(epoch)+".txt"
+        if attack:
+            with open(os.path.join(opt.ckpt_folder, resultPath), "w+") as f:
+                results_dict = {
+                    "clean_acc": best_clean_acc.item(),
+                    "bd_acc": best_bd_acc.item(),
+                    "cross_acc": best_cross_acc.item(),
+                    "epoch": str(epoch)
+                }
+                json.dump(results_dict, f, indent=2)
+        else:
+            with open(os.path.join(opt.ckpt_folder, resultPath), "w+") as f:
+                results_dict = {
+                    "clean_acc": best_clean_acc.item(),
+                    "epoch": str(epoch)
+                }
+                json.dump(results_dict, f, indent=2)
 
     return best_clean_acc, best_bd_acc, best_cross_acc
 
@@ -344,7 +347,7 @@ def main():
     elif opt.dataset == "celeba":
         opt.num_classes = 8
     elif opt.dataset == 'ISIC2019':
-        opt.num_classes = 3
+        opt.num_classes = 8
     elif opt.dataset == 'Echo':
         opt.num_classes = 3
     elif opt.dataset == 'COVID-19':
@@ -384,8 +387,8 @@ def main():
         raise Exception("Invalid Dataset")
 
     # Dataset
-    train_dl = get_dataloader(opt, True,set_ISIC2019='Train')
-    test_dl = get_dataloader(opt, False,set_ISIC2019='Test')
+    train_dl = get_dataloader(opt, True,trainOrTestData='Train')
+    test_dl = get_dataloader(opt, False,trainOrTestData='Test')
     
     attack = True
 
