@@ -163,7 +163,7 @@ class poison_generator():
 
 class poison_transform():
 
-    def __init__(self, img_size, normalizer, denormalizer, identity_grid, noise_grid, s=0.5, k=4, grid_rescale=1, target_class=0,attack_mode='all2all'):
+    def __init__(self, img_size, normalizer, denormalizer, identity_grid, noise_grid, s=0.5, k=4, grid_rescale=1, target_class=0,attack_mode='all2all',num_classes = 4):
 
         self.img_size = img_size
         self.normalizer = normalizer
@@ -176,7 +176,7 @@ class poison_transform():
         self.grid_rescale = grid_rescale
         self.identity_grid = identity_grid.cuda()
         self.noise_grid = noise_grid.cuda()
-        self.num_classes = 4
+        self.num_classes = num_classes
 
     def transform(self, data, labels):
         grid_temps = (self.identity_grid.to(data.device) + self.s * self.noise_grid.to(data.device) / self.img_size) * self.grid_rescale

@@ -211,7 +211,7 @@ class BaDExpert(BackdoorDefense):
         
         print("\n#####[{}]#####".format(args.poison_type))
         
-        unlearned_model = unlearn(args, params, self.clean_set_loader, self.test_set_loader, self.poison_transform)
+        # unlearned_model = unlearn(args, params, self.clean_set_loader, self.test_set_loader, self.poison_transform)
         shadow_model = finetune(args, params, self.clean_set, self.test_set_loader, self.poison_transform)
 
         # Load models

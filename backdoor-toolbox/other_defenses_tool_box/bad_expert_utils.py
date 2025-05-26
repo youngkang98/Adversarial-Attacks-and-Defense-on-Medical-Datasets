@@ -202,7 +202,7 @@ def get_params(args):
         batch_size = 32
 
         finetuning_batch_size = 64
-        finetuning_epochs = 10
+        finetuning_epochs = 20
         finetuning_lr = 0.05
         finetuning_milestone = [2, 4, 6, 8]
         finetuning_gamma = 0.1
@@ -235,7 +235,7 @@ def get_params(args):
         batch_size = 32
 
         finetuning_batch_size = 64
-        finetuning_epochs = 10
+        finetuning_epochs = 20
         finetuning_lr = 0.05
         finetuning_milestone = [2, 4, 6, 8]
         finetuning_gamma = 0.1

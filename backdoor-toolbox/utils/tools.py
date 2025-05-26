@@ -323,6 +323,7 @@ def test_attack_success_rate_2(model, test_loader, poison_transform, num_classes
     """
     Testing attack success rate with focus on label changes
     """
+    print(f"[DEBUG] num_classes = {num_classes}")
     model.eval()
     total = 0
     clean_correct = 0
@@ -359,7 +360,18 @@ def test_attack_success_rate_2(model, test_loader, poison_transform, num_classes
             
             # Record class transitions
             for orig, poison_target in zip(targets.cpu(), poisoned_targets.cpu()):
-                class_transitions[orig, poison_target] += 1
+                # class_transitions[orig, poison_target] += 1
+                o = orig.item()
+                p = poison_target.item()
+
+                if p < 0 or p >= num_classes:
+                    raise ValueError(
+                        f"[ERROR] Poisoned target {p} out of range "
+                        f"[0, {num_classes - 1}] at batch {batch_idx}, "
+                        f"orig={o}"
+                    )
+
+                class_transitions[o, p] += 1
             
             # Log detailed results for first few batches
             if batch_idx < 3:

@@ -48,7 +48,7 @@ def get_arguments():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--continue_training", default=False,action="store_true")
 
-    parser.add_argument("--dataset", type=str, default="ISIC2019")
+    parser.add_argument("--dataset", type=str, default="CXRAY")
     parser.add_argument("--attack_mode", type=str, default="all2all")
 
     parser.add_argument("--bs", type=int, default=16)
@@ -57,7 +57,7 @@ def get_arguments():
     # parser.add_argument("--schedulerC_lambda", type=float, default=0.05)
     parser.add_argument("--schedulerC_milestones", type=list, default=[100, 200, 300, 400])
     parser.add_argument("--schedulerC_lambda", type=float, default=0.1)
-    parser.add_argument("--n_iters", type=int, default=50)
+    parser.add_argument("--n_iters", type=int, default=100)
     
     parser.add_argument("--num_workers", type=float, default=2)
 

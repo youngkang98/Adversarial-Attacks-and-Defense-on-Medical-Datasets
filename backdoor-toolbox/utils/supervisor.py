@@ -32,7 +32,8 @@ def get_cleansed_set_indices_dir(args):
 def get_model_name(args, cleanse=False, defense=False):
     # `args.model_path` > `args.model` > by default 'full_base'
     if hasattr(args, 'model_path') and args.model_path is not None:
-        model_name = args.model_path
+        model_name = os.path.basename(args.model_path)
+        # model_name = args.model_path
     elif hasattr(args, 'model') and args.model is not None:
         model_name = args.model
     elif args.poison_type in ['trojannn']:
@@ -566,7 +567,7 @@ def get_poison_transform(poison_type, dataset_name, target_class, source_class=1
             poison_transform = WaNet.poison_transform(img_size=img_size, denormalizer=denormalizer,
                                                       identity_grid=identity_grid, noise_grid=noise_grid, s=s, k=k,
                                                       grid_rescale=grid_rescale, normalizer=normalizer,
-                                                      target_class=target_class)
+                                                      target_class=target_class,num_classes = num_classes)
 
         elif poison_type == 'adaptive_blend':
 

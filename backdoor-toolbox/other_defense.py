@@ -1,3 +1,6 @@
+
+import torch.multiprocessing as mp
+mp.set_sharing_strategy('file_system')
 import torch
 import argparse, config, os, sys
 from utils import supervisor, tools, default_args
@@ -44,8 +47,9 @@ parser.add_argument('-model', type=str, required=False, default=None)
 # parser.add_argument('-model_path', required=False, default="OCT_all2all_morph.pth.tar")
 #CXray
 # parser.add_argument('-model_path', required=False, default="CXRAY_all2all_bd28_morph.pth.tar")
+# parser.add_argument('-model_path', required=False, default="CXRAY_Model/CXRAY_all2all_morph.pth.tar")
 #ISIC2019
-parser.add_argument('-model_path', required=False, default="ISIC2019_all2all_morph.pth.tar")
+parser.add_argument('-model_path', required=False, default="ISIC2019_Model/ISIC2019_all2all_morph.pth.tar")
 
 parser.add_argument('-no_normalize', default=False, action='store_true')
 parser.add_argument('-defense', type=str, required=False, default="BaDExpert",
@@ -59,8 +63,8 @@ args = parser.parse_args()
 args.input_height = 256
 args.input_width = 256
 args.input_channel = 3
-args.bs = 4
-args.num_workers = 2
+args.bs = 8
+args.num_workers = 0
 
 # carve allocations into ≤ 128 MiB pieces
 torch.backends.cuda.max_split_size_mb = 128

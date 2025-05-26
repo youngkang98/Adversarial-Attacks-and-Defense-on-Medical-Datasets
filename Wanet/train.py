@@ -33,7 +33,7 @@ def get_model(opt):
         netC = ResNet18().to(opt.device)
     if opt.dataset == "mnist":
         netC = NetC_MNIST().to(opt.device)
-    if opt.dataset == "ISIC2019" or opt.dataset == "Echo" or opt.dataset == "COVID-19":
+    if opt.dataset == "ISIC2019" or opt.dataset == "Echo" or opt.dataset == "COVID-19" or opt.dataset == "CXRAY":
         netC = models.resnet50(pretrained=True)
         netC.fc = nn.Linear(netC.fc.in_features, opt.num_classes)
         netC = netC.to(opt.device)
@@ -294,16 +294,25 @@ def eval(
     # Save checkpoint
     # if acc_clean > best_clean_acc or (acc_clean > best_clean_acc - 0.1 and acc_bd > best_bd_acc):
     best_bd = False
+    best_clean = False
     print(" Saving...")
-    best_clean_acc = acc_clean
+    if acc_clean >= best_clean_acc - 1.0:
+        # best_clean_acc = acc_clean
+        # print(f"Clean Accuracy {acc_bd} replacing {best_bd_acc} of the model!")
+        best_clean = True
     if attack and acc_bd >= best_bd_acc:
-        best_bd_acc = acc_bd
-        print(f"BD Accuracy {acc_bd} replacing {best_bd_acc} of the model!")
+        # best_bd_acc = acc_bd
+        # print(f"BD Accuracy {acc_bd} replacing {best_bd_acc} of the model!")
+        best_bd = True
     if attack and opt.cross_ratio:
         best_cross_acc = acc_cross
     else:
         best_cross_acc = torch.tensor([0])
-    if best_bd:
+    if best_bd and best_clean:
+        best_clean_acc = acc_clean
+        print(f"Clean Accuracy {acc_clean} replacing {best_clean_acc} of the model!")
+        best_bd_acc = acc_bd
+        print(f"BD Accuracy {acc_bd} replacing {best_bd_acc} of the model!")
         state_dict = {
             "netC": netC.state_dict(),
             "schedulerC": schedulerC.state_dict(),
@@ -352,6 +361,10 @@ def main():
         opt.num_classes = 3
     elif opt.dataset == 'COVID-19':
         opt.num_classes = 3
+    elif opt.dataset == 'OCT':
+        opt.num_classes = 4
+    elif opt.dataset == 'CXRAY':
+        opt.num_classes = 2
     else:
         raise Exception("Invalid Dataset")
 
@@ -382,6 +395,14 @@ def main():
     elif opt.dataset == "COVID-19":
         opt.input_height = 224
         opt.input_width = 224
+        opt.input_channel = 3    
+    elif opt.dataset == "OCT":
+        opt.input_height = 256
+        opt.input_width = 256
+        opt.input_channel = 3     
+    elif opt.dataset == "CXRAY":
+        opt.input_height = 256
+        opt.input_width = 256
         opt.input_channel = 3    
     else:
         raise Exception("Invalid Dataset")

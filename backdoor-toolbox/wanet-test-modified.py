@@ -1,4 +1,6 @@
 import torch
+import torch.multiprocessing as mp
+mp.set_sharing_strategy('file_system')
 import torch.nn as nn
 import os
 import argparse
@@ -90,43 +92,48 @@ def load_wanet_components(args):
             # model.load_state_dict(torch.load(args.model_path))
             model = model.cuda()
     elif args.dataset == 'CXRAY' or args.dataset =='ISIC2019':
+        
         if (args.model_path.endswith('.pth.tar')):
-            # model = supervisor.get_arch(args)
-            # model.load_state_dict(torch.load(args.model_path))
-            # model = model.cuda()
-            num_classes = args.num_classes
-            model = models.resnet50()
-            model.fc = nn.Linear(model.fc.in_features, num_classes)
-            
-            # Load checkpoint
-            try:
-                state_dict = torch.load(args.model_path, map_location=device)
-                model_state = state_dict["netC"]
+            # extract just the filename
+            filename = os.path.basename(args.model_path)
+            if filename.startswith('bad_expert'):
+                model = supervisor.get_arch(args)
+                model.load_state_dict(torch.load(args.model_path))
+                model = model.cuda()
+            else:
+                num_classes = args.num_classes
+                model = models.resnet50()
+                model.fc = nn.Linear(model.fc.in_features, num_classes)
                 
-                # Remove DataParallel prefix if present
-                # if list(model_state.keys())[0].startswith('module.'):
-                #     model_state = {k[7:]: v for k, v in model_state.items()}
-                
-                # Load weights and move model to device
-                model.load_state_dict(model_state)
-                model = model.to(device)
-                
-                print(f"Model loaded successfully and moved to {device}")
-
-                # Load and move grids to device
-                identity_grid = state_dict["identity_grid"].to(device)
-                noise_grid = state_dict["noise_grid"].to(device)
-
-                
-                # Save grids
-                poison_set_dir = supervisor.get_poison_set_dir(args)
-                os.makedirs(poison_set_dir, exist_ok=True)
-                torch.save(identity_grid.cpu(), os.path.join(poison_set_dir, 'identity_grid'))
-                torch.save(noise_grid.cpu(), os.path.join(poison_set_dir, 'noise_grid'))
-                
-            except Exception as e:
-                print(f"Error loading model: {e}")
-                raise
+                # Load checkpoint
+                try:
+                    state_dict = torch.load(args.model_path, map_location=device)
+                    model_state = state_dict["netC"]
+                    
+                    # Remove DataParallel prefix if present
+                    # if list(model_state.keys())[0].startswith('module.'):
+                    #     model_state = {k[7:]: v for k, v in model_state.items()}
+                    
+                    # Load weights and move model to device
+                    model.load_state_dict(model_state)
+                    model = model.to(device)
+                    
+                    print(f"Model loaded successfully and moved to {device}")
+    
+                    # Load and move grids to device
+                    identity_grid = state_dict["identity_grid"].to(device)
+                    noise_grid = state_dict["noise_grid"].to(device)
+    
+                    
+                    # Save grids
+                    poison_set_dir = supervisor.get_poison_set_dir(args)
+                    os.makedirs(poison_set_dir, exist_ok=True)
+                    torch.save(identity_grid.cpu(), os.path.join(poison_set_dir, 'identity_grid'))
+                    torch.save(noise_grid.cpu(), os.path.join(poison_set_dir, 'noise_grid'))
+                    
+                except Exception as e:
+                    print(f"Error loading model: {e}")
+                    raise
         elif(args.model_path.endswith('.pt')):
             model = supervisor.get_arch(args)
             model.load_state_dict(torch.load(args.model_path))
@@ -159,7 +166,7 @@ def load_wanet_components(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', type=str, required=False,
-                        default='ISIC2019',
+                        default='CXRAY',
                         choices=['cifar10', 'gtsrb', 'OCT','CXRAY'])
     parser.add_argument('-poison_type', type=str, required=False,
                         default='WaNet')
@@ -174,10 +181,11 @@ def main():
     parser.add_argument('-trigger', type=str, required=False, default=None)
     parser.add_argument('-model_path', required=False, 
                         # default='poisoned_train_set/OCT/WaNet_0.050_cover=0.100_poison_seed=0/bad_expert_finetuned_OCT_all2all_morph.pt',
-                        # default='poisoned_train_set/CXRAY/WaNet_0.050_cover=0.100_poison_seed=0/bad_expert_finetuned_CXRAY_all2all_bd28_morph.pt',
+                        # default='poisoned_train_set/CXRAY/WaNet_0.050_cover=0.100_poison_seed=0/bad_expert_finetuned_CXRAY_all2all_morph.pth.tar',
                         
                         # default='classifier_checkpoint.pth',
-                        default='ISIC2019_all2all_morph.pth.tar',
+                        # default='ISIC2019_Model/ISIC2019_all2all_morph.pth.tar',
+                        default='CXRAY_Model/CXRAY_all2all_morph.pth.tar',
                         help='Path to the WaNet checkpoint file (.pth.tar)')
     # parser.add_argument('-model_path', required=False, default='models/OCT_all2all_morph.pth.tar',
                         # help='Path to the WaNet checkpoint file (.pth.tar)')
@@ -196,7 +204,7 @@ def main():
     args.bs = 32
     args.num_workers = 2
     if args.dataset == 'CXRAY':
-        args.num_classes = 4
+        args.num_classes = 2
     elif args.dataset == 'OCT':
         args.num_classes = 4
     elif args.dataset == 'ISIC2019':
