@@ -1,2 +1,0 @@
-Without Noise - Val Loss: 0.6689 - Val Acc: 76.20%
-With Noise - Val Loss: 0.0000 - Val Acc: 0.00%

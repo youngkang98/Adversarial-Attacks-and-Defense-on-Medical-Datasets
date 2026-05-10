@@ -1,0 +1,293 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 31 21:35:41 2024
+
+@author: lkang
+"""
+
+import sys
+from pathlib import Path
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_root))
+import config
+
+import torch
+import torch.nn as nn
+import torchvision
+from torchvision.models import resnet50
+from torchvision.transforms import transforms
+from torch.utils.data import DataLoader, Dataset
+from dataloader import ISICDataset, get_transform
+from art.estimators.classification import PyTorchClassifier
+from art.attacks.evasion import UniversalPerturbation,TargetedUniversalPerturbation
+from art.defences.trainer import AdversarialTrainerFBFPyTorch,AdversarialTrainerMadryPGD
+from art.data_generators import PyTorchDataGenerator
+from art.utils import to_categorical
+import numpy as np
+from sklearn.metrics import confusion_matrix, classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+import random
+from collections import defaultdict
+from math import floor
+from utils.plot import make_adv_img
+from utils.data import psnr
+import os
+# from utils.test import test
+
+from art.defences.trainer import AdversarialTrainer
+from art.attacks.evasion import FastGradientMethod, ProjectedGradientDescent,DeepFool
+from PreActBottleNeck import PreActResNet50
+
+import torchvision.datasets as datasets
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import time
+
+# Start the timer
+start_time = time.time()
+
+def plot_confusion_matrix(true_labels,pred_labels,name=None):
+    # Compute the confusion matrix
+    conf_matrix = confusion_matrix(true_labels, pred_labels)
+
+    # Display the confusion matrix using seaborn
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    if name != None:
+        # Save the figure
+        plt.savefig(str(config.get_experiment_path(f'{name}.png')), dpi=300, bbox_inches='tight')
+    plt.show()
+
+# Define a mapping dictionary
+label_mapping = {0: 0, 1: 1, 2: 2, 4: 3}
+# label_mapping = {0: 0, 2: 1}
+
+def remap_labels(labels):
+    # Use the label_mapping dictionary to remap the labels
+    return torch.tensor([label_mapping[label.item()] for label in labels])
+
+# Update your evaluate function
+def evaluate_2(classifier, loader, criterion, device, noise_tensor=None, add_noise=False, remap=False,eps_current=[0,0],image_count = 0):
+    classifier._model.eval()
+    val_loss = 1.0
+    val_acc = 0.0
+    true_labels = []
+    pred_labels = []
+    first_image = True
+
+    with torch.no_grad():
+        for images, labels in loader:
+            if remap:
+                images, labels = images.to(device), remap_labels(labels).to(device)  # Remap labels here
+            else:
+                images, labels = images.to(device), labels.to(device)
+            true_labels.extend(labels.cpu().numpy())
+            
+            if add_noise and noise_tensor is not None:
+                clean_image_for_psnr = images[0].clone()
+                images += noise_tensor
+                adv_img = images[0]
+                clean_image_np = np.transpose(clean_image_for_psnr.cpu().numpy(), (1, 2, 0))
+                adv_img_np = np.transpose(adv_img.cpu().numpy(), (1, 2, 0))
+                
+                if first_image:
+                    make_adv_img(clean_image_for_psnr,noise_tensor,adv_img,f'ISIC2019/adv_img_att{eps_current[0]}eps{eps_current[1]}_{image_count}.jpg')
+                    psnr(clean_image_np, adv_img_np,f'ISIC2019/psnr_att{eps_current[0]}_eps{eps_current[1]}.txt')
+                    first_image = False
+
+            outputs = classifier.predict(images.cpu().numpy())
+            outputs = torch.tensor(outputs).to(device)
+            _, preds = torch.max(outputs, 1)
+            pred_labels.extend(preds.cpu().numpy())
+            val_acc += torch.sum(preds == labels.data)
+            loss = criterion(outputs, labels)  # Now the labels are in the correct range
+            val_loss += loss.item() * images.size(0)
+
+    val_loss /= len(loader.dataset)
+    val_acc = val_acc.double() / len(loader.dataset)
+    return val_loss, val_acc * 100, true_labels, pred_labels  # Return true_labels and pred_labels
+
+
+def save_results_to_file(filename, val_loss_no_noise, val_acc_no_noise, val_loss_with_noise, val_acc_with_noise, success_rate = 0, targeted = False):
+    if(not targeted):
+        with open(filename, 'w') as file:
+            file.write(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%\n")
+            file.write(f"With Noise - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}%\n")
+    else:
+        with open(filename, 'w') as file:
+            file.write(f"Without Noise - Val Loss: {val_loss_no_noise:.4f} - Val Acc: {val_acc_no_noise:.2f}%\n")
+            file.write(f"With Noise - Val Loss: {val_loss_with_noise:.4f} - Val Acc: {val_acc_with_noise:.2f}% - Succ Rate: {success_rate:.2f}%")
+
+def to_one_hot(label, num_classes):
+    one_hot_vector = np.zeros(num_classes)
+    one_hot_vector[label] = 1
+    return one_hot_vector
+
+# After the evaluate function or where true_labels and pred_labels are available
+def generate_classification_report(true_labels, pred_labels,fileName):
+    # Generate the classification report
+    report = classification_report(true_labels, pred_labels)
+    print(report)
+
+    # Save the report to a text file
+    with open(fileName, 'w') as f:
+        f.write(report)
+        
+class AdversarialDataset(Dataset):
+    def __init__(self, data, labels):
+        self.data = torch.tensor(data).float()  # Ensure data is float
+        self.labels = torch.tensor(labels).long()  # Ensure labels are long integers
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx], self.labels[idx]
+
+        
+# -------------------------------------------------------
+# Parameters need to change
+
+datapath = str(config.get_data_path('ISIC2019'))
+# testfile = str(config.get_data_path('ISIC2019_test.csv'))
+trainfile = str(config.get_data_path('ISIC2019_train_012.csv'))
+testfile = str(config.get_data_path('ISIC2019_test_012.csv'))
+# train_data_path = str(config.get_data_path('ISIC2019'))
+# test_data_path = str(config.get_data_path('ISIC2019'))
+train_data_path = '../chest_xray/train'
+test_data_path = '../chest_xray/test'
+
+num_classes = 2
+
+clean_checkpoint = torch.load(str(config.get_model_path('ISIC2019_morph.pth.tar')),map_location ='cpu')
+checkpoint = torch.load(str(config.get_model_path('checkpoint.pth')),map_location ='cpu')
+
+# Number of images to use for noise generation
+image_count = 1773
+
+# List of numbers of images to use for noise 
+image_counts = [1773]
+
+# iterations = [35,30,25,20,15,10]
+iterations = [25]
+# eps = [0.0005,0.001,0.002,0.005,0.01,0.02,0.03,0.04,0.05]
+# attack_eps = [0.0005,0.001,0.002,0.005,0.01,0.02,0.03,0.04,0.05]
+eps = [0.04]
+attack_eps = [0.0024]
+remap = False
+targeted_attack = False
+
+# ----------------------------------------------------------
+
+test_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+train_transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+test_transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+
+train_dataset =  datasets.ImageFolder(train_data_path,train_transform)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+train_dataset_length = int(len(train_dataset))
+print(f"Number of images in the train dataset: {train_dataset_length}")
+
+eval_dataset = datasets.ImageFolder(test_data_path,test_transform)
+eval_dataset_length = len(eval_dataset)
+eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True)
+print(f"Number of images in the evaluation dataset: {eval_dataset_length}")
+
+device = 'cuda'
+# Load the model
+model = resnet50()
+model.fc = nn.Linear(model.fc.in_features, num_classes)
+model = model.to(device)
+model.train()
+# Define the loss function and the optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=5e-4)
+
+# Training function
+def train(model, train_loader, criterion, optimizer, device, epochs):
+    model.train()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+        print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {running_loss / len(train_loader):.4f}")
+
+# Evaluation function
+def evaluate(model, eval_loader, criterion, device):
+    model.eval()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+    all_labels = []
+    all_preds = []
+    
+    with torch.no_grad():
+        for inputs, labels in eval_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            running_loss += loss.item()
+
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+            # Collecting all labels and predictions for the confusion matrix
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(predicted.cpu().numpy())
+
+    accuracy = 100 * correct / total
+    return running_loss / len(eval_loader), accuracy, all_labels, all_preds
+
+
+# Training loop
+num_epochs = 100
+train(model, train_loader, criterion, optimizer, device, num_epochs)
+
+# Evaluate the model
+eval_loss, eval_accuracy, all_labels, all_preds = evaluate(model, eval_loader, criterion, device)
+print(f"Eval Loss: {eval_loss:.4f}, Eval Accuracy: {eval_accuracy:.2f}%")
+plot_confusion_matrix(all_labels,all_preds,"CXRAY_result/conf_train")
+
+save_path = 'model'
+# Save the model and optimizer state
+checkpoint = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+}
+
+os.makedirs(save_path, exist_ok=True)
+torch.save(checkpoint, os.path.join(save_path, f"chest_xray_epoch{num_epochs}_BS16.pth"))
+# End the timer
+end_time = time.time()
+
+# Calculate the elapsed time
+elapsed_time = end_time - start_time
+
+print(f"Time taken to run the code: {elapsed_time} seconds")
