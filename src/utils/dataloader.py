@@ -10,19 +10,34 @@ import torchvision
 import torchvision.transforms as transforms
 import os
 import csv
-import kornia.augmentation as A
 import random
 import numpy as np
 import pandas as pd
-from keras.preprocessing.image import ImageDataGenerator
 from torchvision.transforms.functional import to_tensor
 import torch.nn.functional as F
-
 from PIL import Image
-
-import cv2
-from keras.utils import to_categorical
 from tqdm import tqdm
+
+# Optional heavy dependencies — only needed for specific dataset loaders
+try:
+    import kornia.augmentation as A
+    KORNIA_AVAILABLE = True
+except ImportError:
+    KORNIA_AVAILABLE = False
+
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
+try:
+    from keras.preprocessing.image import ImageDataGenerator
+    from keras.utils import to_categorical
+    import tensorflow as tf
+    TF_AVAILABLE = True
+except ImportError:
+    TF_AVAILABLE = False
 
 mapping = {'normal': 0, 'pneumonia': 1, 'COVID-19': 2}
 classes = ['melanoma', 'seborrheic keratosis', 'nevus', 'basal cell carcinoma', 'squamous cell carcinoma', 'dermatofibroma', 'vascular lesion']
@@ -132,8 +147,6 @@ class ISICDataset(Dataset):
             # Save the pre-processed data to disk
             np.save('{}/x_{}'.format(self.datapath, self.data_type), np.array(self.data))
             np.save('{}/y_{}'.format(self.datapath, self.data_type), np.array(self.labels))
-
-import tensorflow as tf
 
 class ISICDatasetTF:
     def __init__(self, datapath, csv_file, data_type):
@@ -357,7 +370,53 @@ class COVID19Dataset(Dataset):
         one_hot = np.zeros(self.num_classes)
         one_hot[label] = 1
         return one_hot
-                    
+
+
+class COVID19Dataset_New(Dataset):
+    """
+    Reads the COVIDx .txt split format used by COVID-Net:
+        patient_id  filename  label  split
+    where label is one of: normal, pneumonia, COVID-19
+    Images are expected flat in root_dir (no class subfolders).
+    """
+    def __init__(self, txt_file, root_dir, transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.data = []
+        self.labels = []
+        self._load(txt_file)
+
+    def _load(self, txt_file):
+        with open(txt_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    continue
+                filename = parts[1]
+                label_str = parts[2]
+                self.data.append(filename)
+                self.labels.append(mapping.get(label_str, 0))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            imgs, lbls = [], []
+            for i in range(*idx.indices(len(self))):
+                img, lbl = self._get_item(i)
+                imgs.append(img)
+                lbls.append(lbl)
+            return np.array([np.array(im) for im in imgs]), np.array(lbls)
+        return self._get_item(idx)
+
+    def _get_item(self, idx):
+        img_path = os.path.join(self.root_dir, self.data[idx])
+        image = Image.open(img_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image, self.labels[idx]
+
 
 def load_data(datapath, trainfile, testfile):
     if os.path.exists(datapath + '/x_train.npy'):
@@ -386,7 +445,8 @@ def load_data(datapath, trainfile, testfile):
                 y_list.append(line[1])
             x_list = np.array(x_list)
             y_list = np.array(y_list)
-            y_list = to_categorical(y_list)
+            num_cls = len(set(int(v) for v in y_list))
+            y_list = np.eye(num_cls)[np.array(y_list, dtype=int)]
             np.save('{}/x_{}'.format(datapath, data_type), x_list)
             np.save('{}/y_{}'.format(datapath, data_type), y_list)
             dataset['x_{}'.format(data_type)] = x_list
@@ -430,7 +490,8 @@ def load_data_without_train(datapath, testfile):
                 y_list.append(line[1])
             x_list = np.array(x_list)
             y_list = np.array(y_list)
-            y_list = to_categorical(y_list)
+            num_cls = len(set(int(v) for v in y_list))
+            y_list = np.eye(num_cls)[np.array(y_list, dtype=int)]
             np.save('{}/x_{}'.format(datapath, data_type), x_list)
             np.save('{}/y_{}'.format(datapath, data_type), y_list)
             dataset['x_{}'.format(data_type)] = x_list
@@ -494,6 +555,8 @@ def get_transform(opt, train=True, pretensor_transform=False):
 class PostTensorTransform(torch.nn.Module):
     def __init__(self, opt):
         super(PostTensorTransform, self).__init__()
+        if not KORNIA_AVAILABLE:
+            raise ImportError("kornia is required for PostTensorTransform. pip install kornia")
         self.random_crop = ProbTransform(
             A.RandomCrop((opt.input_height, opt.input_width), padding=opt.random_crop), p=0.8
         )
