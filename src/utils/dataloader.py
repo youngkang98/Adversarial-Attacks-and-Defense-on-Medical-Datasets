@@ -39,7 +39,12 @@ try:
 except ImportError:
     TF_AVAILABLE = False
 
-mapping = {'normal': 0, 'pneumonia': 1, 'COVID-19': 2}
+# COVIDx8B uses 'negative'/'positive'; older splits use 'normal'/'pneumonia'
+mapping = {
+    'negative': 0, 'normal': 0,
+    'positive': 1, 'pneumonia': 1,
+    'COVID-19': 2,
+}
 classes = ['melanoma', 'seborrheic keratosis', 'nevus', 'basal cell carcinoma', 'squamous cell carcinoma', 'dermatofibroma', 'vascular lesion']
 
 from torch.utils.data import Dataset
