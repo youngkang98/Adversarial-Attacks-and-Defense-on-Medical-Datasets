@@ -1,0 +1,2 @@
+Without Noise - Val Loss: 0.0000 - Val Acc: 97.10%
+With Noise - Val Loss: 7.9473 - Val Acc: 28.20% - Succ Rate: 0.00%

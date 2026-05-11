@@ -31,7 +31,11 @@ env.bak/
 venv.bak/
 
 # Project specifics
-data/
-experiments/
-third_party/
+# Ignore heavy image datasets and zips in data, but track metadata (csv/txt)
+data/*
+!data/*.csv
+!data/*.txt
+!data/*.md
+!data/.gitkeep
+
 .DS_Store
