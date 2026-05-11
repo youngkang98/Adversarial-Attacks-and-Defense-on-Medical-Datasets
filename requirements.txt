@@ -6,3 +6,7 @@ matplotlib
 scikit-learn
 Pillow
 tqdm
+seaborn
+adversarial-robustness-toolbox[pytorch]>=1.17.0
+# tensorflow is only required for src/attacks/New_TF_UAP.py and src/attacks/test_TF_UAP.py
+# tensorflow>=2.10.0
